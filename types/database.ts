@@ -10,6 +10,7 @@ export type KnockoutWinnerPick = "home" | "away";
 
 export type Match = {
   id: string;
+  external_id: string | null;
   home_team: string;
   away_team: string;
   home_score: number | null;
@@ -27,4 +28,20 @@ export type Prediction = {
   predicted_away_score: number;
   predicted_winner: KnockoutWinnerPick | null;
   created_at: string;
+};
+
+export type UserScore = {
+  id: string;
+  user_id: string;
+  match_id: string;
+  score: number;
+  stage: MatchStage | null;
+  breakdown_json: Record<string, unknown> | null;
+  computed_at: string;
+};
+
+export type LeaderboardRow = {
+  user_id: string;
+  email: string;
+  total_score: number;
 };

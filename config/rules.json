@@ -1,4 +1,63 @@
 {
-  "title": "Competition Rules",
-  "sections": []
+  "competition": "Coupe du Monde Pronostics",
+  "rules": {
+    "pre_tournament_predictions": {
+      "deadline": "before_first_match",
+      "group_stage": {
+        "first_place_correct": 3,
+        "second_place_correct": 2,
+        "qualified_wrong_position": 1
+      },
+      "knockout_forecast": {
+        "semi_finalists_per_team": 5,
+        "final": {
+          "one_team_correct": 10,
+          "two_teams_correct": 25
+        }
+      }
+    },
+    "match_predictions": {
+      "deadline": "before_match_start",
+      "score_basis": "regular_time_or_extra_time_120min",
+      "stages": {
+        "group_stage": {
+          "correct_1N2": 3,
+          "exact_score_per_team_if_correct_1N2": 2,
+          "incorrect_1N2": 0,
+          "exact_score_per_team_if_wrong_1N2": 1
+        },
+        "round_of_16": {
+          "correct_1N2": 5,
+          "exact_score_per_team_if_correct_1N2": 3,
+          "incorrect_1N2": 0,
+          "exact_score_per_team_if_wrong_1N2": 2,
+          "correct_qualified_bonus": 2
+        },
+        "quarter_finals": {
+          "correct_1N2": 10,
+          "exact_score_per_team_if_correct_1N2": 5,
+          "incorrect_1N2": 0,
+          "exact_score_per_team_if_wrong_1N2": 4,
+          "correct_qualified_bonus": 4
+        },
+        "semi_finals_and_third_place": {
+          "correct_1N2": 20,
+          "exact_score_per_team_if_correct_1N2": 6,
+          "incorrect_1N2": 0,
+          "exact_score_per_team_if_wrong_1N2": 5,
+          "correct_qualified_bonus": 6
+        },
+        "final": {
+          "correct_1N2": 30,
+          "exact_score_per_team_if_correct_1N2": 12,
+          "incorrect_1N2": 0,
+          "exact_score_per_team_if_wrong_1N2": 8,
+          "correct_qualified_bonus": 10
+        }
+      }
+    },
+    "special_rules": {
+      "knockout_draw_prediction": "If a draw is predicted in knockout stages, the user must also specify the team that qualifies after penalties."
+    }
+  }
 }
