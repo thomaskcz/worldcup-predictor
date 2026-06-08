@@ -24,21 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      // 1. Recuperation immediate de la session
-      const { data, error } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error("getSession error:", error);
-      }
-
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    };
-
-    initAuth();
-
-    // 2. Listener pour les changements futurs
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
