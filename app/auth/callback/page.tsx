@@ -29,6 +29,10 @@ export default function AuthCallbackPage() {
         } = await supabase.auth.getSession();
 
         if (error || !session) {
+          console.error("OAuth error:", error);
+          console.error("Session", session);
+          alert(error.message);
+
           router.replace("/auth?error=sign_in_failed");
           return;
         }
