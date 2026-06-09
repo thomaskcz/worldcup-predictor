@@ -50,6 +50,35 @@ export type UserScore = {
   computed_at: string;
 };
 
+export type Team = {
+  id: string;
+  name: string;
+  fifa_code: string | null;
+  group_name: string | null;
+  flag_url: string | null;
+  created_at: string;
+};
+
+export type CompetitionPredictionsJson = {
+  groups: Record<
+    string,
+    {
+      first: string;
+      second: string;
+    }
+  >;
+  semi_finalists: string[];
+  finalists: string[];
+};
+
+export type CompetitionPrediction = {
+  id: string;
+  user_id: string;
+  predictions_json: CompetitionPredictionsJson;
+  created_at: string;
+  updated_at: string;
+};
+
 export type LeaderboardRow = {
   user_id: string;
   email: string;

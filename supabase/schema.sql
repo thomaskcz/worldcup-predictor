@@ -59,3 +59,24 @@ CREATE TABLE public.user_scores (
   CONSTRAINT user_scores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT user_scores_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
 );
+
+CREATE TABLE public.teams (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  fifa_code text UNIQUE,
+  group_name text NOT NULL,
+  flag_url text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT teams_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE public.competition_predictions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  predictions_json jsonb NOT NULL CHECK (jsonb_typeof(predictions_json) = 'object'::text),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT competition_predictions_pkey PRIMARY KEY (id),
+  CONSTRAINT competition_predictions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT competition_predictions_one_per_user UNIQUE (user_id)
+);
