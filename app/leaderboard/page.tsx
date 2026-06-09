@@ -11,7 +11,7 @@ export default async function LeaderboardPage() {
 
   const { data, error } = await supabase
     .from("leaderboard_view")
-    .select("user_id, email, total_score");
+    .select("user_id, email, nickname, total_score");
 
   console.log("[LeaderboardPage] Supabase leaderboard_view response", {
     data,

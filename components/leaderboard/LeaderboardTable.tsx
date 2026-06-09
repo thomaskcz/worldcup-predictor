@@ -1,6 +1,9 @@
+import { getDisplayName } from "@/lib/displayName";
+
 type LeaderboardRow = {
   user_id: string;
   email: string;
+  nickname: string | null;
   total_score: number;
 };
 
@@ -63,7 +66,7 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
                   {rank}
                 </td>
                 <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
-                  {row.email}
+                  {getDisplayName(row)}
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
                   {row.total_score}

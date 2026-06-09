@@ -8,6 +8,15 @@ export type MatchStage =
 
 export type KnockoutWinnerPick = "home" | "away";
 
+export type UserProfile = {
+  id: string;
+  email: string;
+  nickname: string | null;
+  is_admin: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Match = {
   id: string;
   external_id: string | null;
@@ -43,5 +52,6 @@ export type UserScore = {
 export type LeaderboardRow = {
   user_id: string;
   email: string;
+  nickname: string | null;
   total_score: number;
 };
