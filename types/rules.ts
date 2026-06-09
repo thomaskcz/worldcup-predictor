@@ -19,6 +19,43 @@ export type MatchPredictionsRules = {
   final: KnockoutStageRules;
 };
 
+export type PreTournamentGroupStageRules = {
+  first_place_correct: number;
+  second_place_correct: number;
+  qualified_wrong_position: number;
+};
+
+export type PreTournamentFinalForecastRules = {
+  one_team_correct: number;
+  two_teams_correct: number;
+};
+
+export type PreTournamentKnockoutForecastRules = {
+  semi_finalists_per_team: number;
+  final: PreTournamentFinalForecastRules;
+};
+
+export type PreTournamentPredictionsRules = {
+  deadline: string;
+  group_stage: PreTournamentGroupStageRules;
+  knockout_forecast: PreTournamentKnockoutForecastRules;
+};
+
+export type SpecialRules = Record<string, string>;
+
+export type RulesConfig = {
+  competition: string;
+  rules: {
+    pre_tournament_predictions: PreTournamentPredictionsRules;
+    match_predictions: {
+      deadline: string;
+      score_basis: string;
+      stages: MatchPredictionsRules;
+    };
+    special_rules: SpecialRules;
+  };
+};
+
 export type CompetitionRulesJson = {
   competition: string;
   rules: {

@@ -1,5 +1,8 @@
 import { PageContainer } from "@/components/PageContainer";
-import rulesConfig from "@/config/rules.json";
+import type { RulesConfig } from "@/types/rules";
+import rulesConfigRaw from "@/config/rules.json";
+
+const rulesConfig = rulesConfigRaw as RulesConfig;
 
 const stageTitles: Record<string, string> = {
   group_stage: "Phase de groupes",
@@ -54,7 +57,7 @@ function renderPreTournamentRules() {
               Phase de groupes
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {Object.entries(preRules.group_stage as Record<string, unknown>).map(
+              {Object.entries(preRules.group_stage).map(
                 ([key, value]) =>
                   shouldDisplayRule(value) && (
                     <div
@@ -65,7 +68,7 @@ function renderPreTournamentRules() {
                         {formatRuleLabel(key)}
                       </p>
                       <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                        {value as number} pts
+                        {value} pts
                       </p>
                     </div>
                   )
@@ -85,18 +88,18 @@ function renderPreTournamentRules() {
                   Points par demi-finaliste correct
                 </p>
                 <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {(preRules.knockout_forecast as Record<string, unknown>).semi_finalists_per_team as number} pts
+                  {preRules.knockout_forecast.semi_finalists_per_team} pts
                 </p>
               </div>
 
-              {((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>) && (
+              {preRules.knockout_forecast.final && (
                 <>
                   <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-zinc-950">
                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       Un finaliste correct
                     </p>
                     <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                      {(((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>).one_team_correct as number)} pts
+                      {preRules.knockout_forecast.final.one_team_correct} pts
                     </p>
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-zinc-950">
@@ -104,7 +107,7 @@ function renderPreTournamentRules() {
                       Les deux finalistes corrects
                     </p>
                     <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                      {(((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>).two_teams_correct as number)} pts
+                      {preRules.knockout_forecast.final.two_teams_correct} pts
                     </p>
                   </div>
                 </>
@@ -130,11 +133,10 @@ function renderMatchPredictionRules() {
       </p>
 
       <div className="space-y-4">
-        {Object.entries(matchRules.stages as Record<string, unknown>).map(
-          ([stage, stageRules]) => {
-            const hasValidRules = Object.entries(
-              stageRules as Record<string, unknown>
-            ).some(([, value]) => shouldDisplayRule(value));
+        {Object.entries(matchRules.stages).map(([stage, stageRules]) => {
+            const hasValidRules = Object.entries(stageRules).some(
+              ([, value]) => shouldDisplayRule(value)
+            );
 
             if (!hasValidRules) return null;
 
@@ -147,7 +149,7 @@ function renderMatchPredictionRules() {
                   {formatSectionTitle(stage)}
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {Object.entries(stageRules as Record<string, unknown>).map(
+                  {Object.entries(stageRules).map(
                     ([ruleKey, ruleValue]) =>
                       shouldDisplayRule(ruleValue) && (
                         <div
@@ -158,7 +160,7 @@ function renderMatchPredictionRules() {
                             {formatRuleLabel(ruleKey)}
                           </p>
                           <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                            {ruleValue as number} pts
+                            {ruleValue} pts
                           </p>
                         </div>
                       )
@@ -183,13 +185,11 @@ function renderSpecialRules() {
       </h3>
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="space-y-3">
-          {Object.entries(specialRules as Record<string, unknown>).map(
-            ([, rule]) => (
-              <p key={String(rule)} className="text-sm text-zinc-700 dark:text-zinc-300">
-                • {rule}
-              </p>
-            )
-          )}
+          {Object.entries(specialRules).map(([key, rule]) => (
+            <p key={key} className="text-sm text-zinc-700 dark:text-zinc-300">
+              • {rule}
+            </p>
+          ))}
         </div>
       </div>
     </section>
