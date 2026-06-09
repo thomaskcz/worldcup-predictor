@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 
 const NICKNAME_MIN_LENGTH = 3;
 const NICKNAME_MAX_LENGTH = 20;
-const NICKNAME_PATTERN = /^[a-z0-9_-]+$/;
+const NICKNAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Validates a nickname for format and length
@@ -13,7 +13,7 @@ function validateNickname(nickname: string): {
   valid: boolean;
   error?: string;
 } {
-  const trimmed = nickname.trim().toLowerCase();
+  const trimmed = nickname.trim();
 
   if (trimmed.length < NICKNAME_MIN_LENGTH) {
     return {
@@ -33,7 +33,7 @@ function validateNickname(nickname: string): {
     return {
       valid: false,
       error:
-        "Nickname can only contain lowercase letters, numbers, underscores, and hyphens",
+        "Nickname can only contain letters, numbers, underscores, and hyphens",
     };
   }
 
@@ -100,7 +100,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Validate nickname format
-    const validation = validateNickname(nickname);
+    const trimmedNickname = nickname.trim();
+    const validation = validateNickname(trimmedNickname);
     if (!validation.valid) {
       return NextResponse.json(
         { success: false, error: validation.error },
@@ -108,12 +109,33 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const normalizedNickname = nickname.trim().toLowerCase();
+    // Ensure nickname uniqueness in a case-insensitive way
+    const { data: existing, error: lookupError } = await supabase
+      .from("users_profiles")
+      .select("id")
+      .ilike("nickname", trimmedNickname)
+      .neq("id", user.id)
+      .maybeSingle();
 
-    // Update user profile with normalized nickname
+    if (lookupError) {
+      console.error("Supabase lookup error:", lookupError);
+      return NextResponse.json(
+        { success: false, error: "Failed to validate nickname uniqueness" },
+        { status: 500 }
+      );
+    }
+
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: "Nickname already taken" },
+        { status: 409 }
+      );
+    }
+
+    // Update user profile with exact case preserved
     const { data, error } = await supabase
       .from("users_profiles")
-      .update({ nickname: normalizedNickname })
+      .update({ nickname: trimmedNickname })
       .eq("id", user.id)
       .select("nickname")
       .single();
