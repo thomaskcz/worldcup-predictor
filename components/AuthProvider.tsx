@@ -10,8 +10,13 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
+type AppUser = User & {
+  is_admin?: boolean;
+  nickname?: string | null;
+};
+
 type AuthContextValue = {
-  user: User | null;
+  user: AppUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
@@ -20,8 +25,22 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const enrichUser = async (baseUser: User): Promise<AppUser> => {
+    const { data: profile } = await supabase
+      .from("users_profiles")
+      .select("is_admin, nickname")
+      .eq("id", baseUser.id)
+      .single();
+
+    return {
+      ...baseUser,
+      is_admin: profile?.is_admin ?? false,
+      nickname: profile?.nickname ?? null,
+    };
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -29,19 +48,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initializeSession = async () => {
       const {
         data: { session },
-        error,
       } = await supabase.auth.getSession();
 
-      console.log("[AuthProvider] initial session load:", {
-        session,
-        error,
-      });
+      if (!isMounted) return;
 
-      if (!isMounted) {
-        return;
+      if (session?.user) {
+        const enriched = await enrichUser(session.user);
+        if (!isMounted) return;
+
+        setUser(enriched);
+      } else {
+        setUser(null);
       }
 
-      setUser(session?.user ?? null);
       setLoading(false);
     };
 
@@ -49,17 +68,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
       console.log("[AuthProvider] auth event:", event, {
         email: session?.user?.email ?? null,
         hasSession: Boolean(session),
       });
 
-      if (!isMounted) {
-        return;
+      if (session?.user) {
+        const enriched = await enrichUser(session.user);
+        if (!isMounted) return;
+
+        setUser(enriched);
+      } else {
+        setUser(null);
       }
 
-      setUser(session?.user ?? null);
       setLoading(false);
     });
 

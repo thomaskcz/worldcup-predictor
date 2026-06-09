@@ -11,7 +11,7 @@ export function RecalculateScoresButton() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading || !user) {
+  if (loading || !user || !user.is_admin) {
     return null;
   }
 
