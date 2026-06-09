@@ -13,5 +13,3 @@ export type {
 } from "@/types/database";
 
 export type { CompetitionRulesJson, ScoreBreakdown } from "@/types/rules";
-
-export type { ApiFootballFixture, MatchScheduleRow } from "@/types/football";

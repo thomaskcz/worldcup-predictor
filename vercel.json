@@ -1,12 +1,3 @@
 {
-  "crons": [
-    {
-      "path": "/api/sync?job=matches",
-      "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/sync?job=results",
-      "schedule": "0 */2 * * *"
-    }
-  ]
+  "crons": []
 }
