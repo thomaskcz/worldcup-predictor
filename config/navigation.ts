@@ -5,6 +5,5 @@ export const navItems: NavItem[] = [
   { href: "/matches", label: "Matches" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/rules", label: "Rules" },
-  { href: "/settings", label: "Settings" },
-  { href: "/auth", label: "Login" },
+  { href: "/settings", label: "Account" },
 ];
