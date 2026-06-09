@@ -65,7 +65,7 @@ function renderPreTournamentRules() {
                         {formatRuleLabel(key)}
                       </p>
                       <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                        {value} pts
+                        {value as number} pts
                       </p>
                     </div>
                   )
@@ -85,7 +85,7 @@ function renderPreTournamentRules() {
                   Points par demi-finaliste correct
                 </p>
                 <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                  {(preRules.knockout_forecast as Record<string, unknown>).semi_finalists_per_team} pts
+                  {(preRules.knockout_forecast as Record<string, unknown>).semi_finalists_per_team as number} pts
                 </p>
               </div>
 
@@ -96,7 +96,7 @@ function renderPreTournamentRules() {
                       Un finaliste correct
                     </p>
                     <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                      {(((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>).one_team_correct)} pts
+                      {(((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>).one_team_correct as number)} pts
                     </p>
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm dark:bg-zinc-950">
@@ -104,7 +104,7 @@ function renderPreTournamentRules() {
                       Les deux finalistes corrects
                     </p>
                     <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                      {(((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>).two_teams_correct)} pts
+                      {(((preRules.knockout_forecast as Record<string, unknown>).final as Record<string, unknown>).two_teams_correct as number)} pts
                     </p>
                   </div>
                 </>
@@ -158,7 +158,7 @@ function renderMatchPredictionRules() {
                             {formatRuleLabel(ruleKey)}
                           </p>
                           <p className="mt-1 text-lg font-semibold text-emerald-600 dark:text-emerald-400">
-                            {ruleValue} pts
+                            {ruleValue as number} pts
                           </p>
                         </div>
                       )
