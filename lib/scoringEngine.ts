@@ -60,6 +60,8 @@ function getRulesKeyForStage(stage: MatchStage): keyof CompetitionRulesJson["rul
       return "group_stage";
     case "round_of_16":
       return "round_of_16";
+    case "round_of_8":
+      return "round_of_8";
     case "quarter_final":
       return "quarter_finals";
     case "semi_final":
