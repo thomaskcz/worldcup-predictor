@@ -15,7 +15,7 @@ VALUES
 -- =========================
 INSERT INTO public.matches (home_team, away_team, start_time, stage)
 VALUES
-('Canada', 'Bosnie-et-Herzégovine', '2026-06-12 21:00:00+02', 'group'),
+('Canada', 'Bosnie-Herzégovine', '2026-06-12 21:00:00+02', 'group'),
 ('États-Unis', 'Paraguay', '2026-06-13 03:00:00+02', 'group');
 
 -- =========================
@@ -74,7 +74,7 @@ VALUES
 INSERT INTO public.matches (home_team, away_team, start_time, stage)
 VALUES
 ('Tchéquie', 'Afrique du Sud', '2026-06-18 18:00:00+02', 'group'),
-('Suisse', 'Bosnie-et-Herzégovine', '2026-06-18 21:00:00+02', 'group'),
+('Suisse', 'Bosnie-Herzégovine', '2026-06-18 21:00:00+02', 'group'),
 ('Canada', 'Qatar', '2026-06-19 00:00:00+02', 'group'),
 ('Mexique', 'République de Corée', '2026-06-19 03:00:00+02', 'group');
 
