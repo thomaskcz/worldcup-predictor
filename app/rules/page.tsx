@@ -6,8 +6,8 @@ const rulesConfig = rulesConfigRaw as RulesConfig;
 
 const stageTitles: Record<string, string> = {
   group_stage: "Phase de groupes",
+  round_of_32: "Seizièmes de finale",
   round_of_16: "Huitièmes de finale",
-  round_of_8: "Round of 8",
   quarter_finals: "Quarts de finale",
   semi_finals_and_third_place: "Demi-finales et match pour la 3ème place",
   final: "Finale",

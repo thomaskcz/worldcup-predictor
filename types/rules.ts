@@ -13,8 +13,8 @@ export type KnockoutStageRules = {
 
 export type MatchPredictionsRules = {
   group_stage: GroupStageRules;
+  round_of_32: KnockoutStageRules;
   round_of_16: KnockoutStageRules;
-  round_of_8: KnockoutStageRules;
   quarter_finals: KnockoutStageRules;
   semi_finals_and_third_place: KnockoutStageRules;
   final: KnockoutStageRules;

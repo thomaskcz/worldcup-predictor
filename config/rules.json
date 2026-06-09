@@ -26,14 +26,14 @@
           "incorrect_1N2": 0,
           "exact_score_per_team_if_wrong_1N2": 1
         },
-        "round_of_16": {
+        "round_of_32": {
           "correct_1N2": 5,
           "exact_score_per_team_if_correct_1N2": 3,
           "incorrect_1N2": 0,
           "exact_score_per_team_if_wrong_1N2": 2,
           "correct_qualified_bonus": 2
         },
-        "round_of_8": {
+        "round_of_16": {
           "correct_1N2": 6,
           "exact_score_per_team_if_correct_1N2": 4,
           "incorrect_1N2": 0,
