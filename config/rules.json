@@ -57,7 +57,7 @@
       }
     },
     "special_rules": {
-      "knockout_draw_prediction": "If a draw is predicted in knockout stages, the user must also specify the team that qualifies after penalties."
+      "knockout_draw_prediction": "Si un match nul est prévu lors des phases à élimination directe, il faut également indiquer l'équipe qui se qualifie après les tirs au but."
     }
   }
 }
