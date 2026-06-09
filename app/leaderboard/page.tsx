@@ -13,6 +13,11 @@ export default async function LeaderboardPage() {
     .from("leaderboard_view")
     .select("user_id, email, total_score");
 
+  console.log("[LeaderboardPage] Supabase leaderboard_view response", {
+    data,
+    error,
+  });
+
   const rows = ((data ?? []) as LeaderboardRow[]).sort((left, right) => {
     if (right.total_score !== left.total_score) {
       return right.total_score - left.total_score;

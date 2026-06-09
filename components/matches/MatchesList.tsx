@@ -42,6 +42,11 @@ export function MatchesList() {
           .eq("user_id", user.id),
       ]);
 
+      console.log("[MatchesList] Supabase response", {
+        matchesResult,
+        predictionsResult,
+      });
+
       if (cancelled) {
         return;
       }

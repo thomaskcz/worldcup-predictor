@@ -24,6 +24,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const initializeSession = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      console.log("[AuthProvider] initial session load:", {
+        session,
+        error,
+      });
+
+      if (!isMounted) {
+        return;
+      }
+
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+
+    initializeSession();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -32,11 +55,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         hasSession: Boolean(session),
       });
 
+      if (!isMounted) {
+        return;
+      }
+
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
