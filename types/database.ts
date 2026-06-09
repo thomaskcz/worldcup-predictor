@@ -79,6 +79,25 @@ export type CompetitionPrediction = {
   updated_at: string;
 };
 
+export type CompetitionResult = {
+  id: string;
+  stage: "groups" | "semi_final" | "final";
+  group_name: string | null;
+  team_id: string;
+  position: number | null;
+  updated_at: string;
+};
+
+export type CompetitionLeaderboardRow = {
+  id: string;
+  user_id: string;
+  total_points: number;
+  group_points: number;
+  knockout_points: number;
+  breakdown_json: Record<string, unknown> | null;
+  updated_at: string;
+};
+
 export type LeaderboardRow = {
   user_id: string;
   email: string;

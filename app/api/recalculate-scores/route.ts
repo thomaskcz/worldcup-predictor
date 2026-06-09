@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recalculateScores } from "@/lib/recalculateScores";
+import { recalculateCompetitionScores } from "@/lib/scoring/recalculateCompetition";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -16,9 +17,18 @@ export async function POST() {
 
   try {
     const adminClient = createSupabaseAdminClient();
-    const result = await recalculateScores(adminClient);
 
-    return NextResponse.json(result);
+    // Recalculate match-based prediction scores
+    const matchResult = await recalculateScores(adminClient);
+
+    // Recalculate competition-based scores (groups, semis, finals)
+    const competitionResult = await recalculateCompetitionScores(adminClient);
+
+    // Return backward-compatible response that includes all results
+    return NextResponse.json({
+      ...matchResult,
+      competition: competitionResult,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to recalculate scores.";
