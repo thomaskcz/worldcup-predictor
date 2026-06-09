@@ -2,19 +2,12 @@ import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { RecalculateScoresButton } from "@/components/leaderboard/RecalculateScoresButton";
 import { PageContainer } from "@/components/PageContainer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import type { LeaderboardRow } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
   const supabase = await createSupabaseServerClient();
-
-  // Check auth server-side and redirect unauthenticated users to /settings
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData?.user) {
-    return redirect("/settings");
-  }
 
   const { data, error } = await supabase
     .from("leaderboard_view")
