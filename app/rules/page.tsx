@@ -15,9 +15,9 @@ const stageTitles: Record<string, string> = {
 
 const ruleLabels: Record<string, string> = {
   correct_1N2: "Bon résultat (1, N ou 2)",
-  exact_score_per_team_if_correct_1N2: "Score exact pour chaque équipe (bon résultat)",
+  exact_score_per_team_if_correct_1N2: "Score exact par équipe (bon résultat)",
   incorrect_1N2: "Mauvais résultat",
-  exact_score_per_team_if_wrong_1N2: "Score exact pour chaque équipe (mauvais résultat)",
+  exact_score_per_team_if_wrong_1N2: "Score exact pour une équipe (mauvais résultat)",
   correct_qualified_bonus: "Bonus qualification correcte",
   first_place_correct: "Première place du groupe correcte",
   second_place_correct: "Deuxième place du groupe correcte",

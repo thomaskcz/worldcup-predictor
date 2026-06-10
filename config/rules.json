@@ -64,7 +64,9 @@
       }
     },
     "special_rules": {
-      "knockout_draw_prediction": "Si un match nul est prévu lors des phases à élimination directe, il faut également indiquer l'équipe qui se qualifie après les tirs au but."
+      "knockout_draw_prediction": "Si un match nul est prévu lors des phases à élimination directe, il faut également indiquer l'équipe qui se qualifie après les tirs au but.",
+      "score_basis": "Les points sont attribués en fonction du score à la fin du temps réglementaire ou de la prolongation (120 minutes), sans tenir compte des tirs au but.",
+      "tiebreaker": "En cas d'égalité de points, le classement sera déterminé par le nombre de pronostics exacts (score exact)."
     }
   }
 }

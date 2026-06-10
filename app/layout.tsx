@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pronostics Coupe du Monde",
+  title: "RikaiRok World Cup",
   description: "Prédisez les matchs de la Coupe du Monde et compétitionnez sur le classement.",
 };
 
