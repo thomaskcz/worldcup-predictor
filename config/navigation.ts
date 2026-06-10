@@ -8,5 +8,6 @@ export const navItems: NavItem[] = [
   { href: "/rules", label: "Règles" },
   { href: "/admin", label: "Admin" },
   { href: "/settings", label: "Paramètres" },
+  { href: "/guide", label: "Aide" },
   { href: "/auth", label: "Connexion" },
 ];
