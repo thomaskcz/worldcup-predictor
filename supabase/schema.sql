@@ -59,7 +59,6 @@ CREATE TABLE public.user_scores (
   CONSTRAINT user_scores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT user_scores_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matches(id)
 );
-
 CREATE TABLE public.teams (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -69,29 +68,25 @@ CREATE TABLE public.teams (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT teams_pkey PRIMARY KEY (id)
 );
-
 CREATE TABLE public.competition_predictions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
+  user_id uuid NOT NULL UNIQUE,
   predictions_json jsonb NOT NULL CHECK (jsonb_typeof(predictions_json) = 'object'::text),
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT competition_predictions_pkey PRIMARY KEY (id),
-  CONSTRAINT competition_predictions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT competition_predictions_one_per_user UNIQUE (user_id)
+  CONSTRAINT competition_predictions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-
 CREATE TABLE public.competition_results (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  stage text NOT NULL CHECK (stage IN ('groups', 'semi_final', 'final')),
+  stage text NOT NULL CHECK (stage = ANY (ARRAY['groups'::text, 'semi_final'::text, 'final'::text])),
   group_name text,
   team_id uuid NOT NULL,
-  position integer CHECK (position >= 1),
+  position integer CHECK ("position" >= 1),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT competition_results_pkey PRIMARY KEY (id),
   CONSTRAINT competition_results_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id)
 );
-
 CREATE TABLE public.competition_leaderboard (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE,
