@@ -141,20 +141,37 @@ export function MatchCard({
               Votre pronostic
             </span>
           )}
+          {prediction && prediction.predicted_winner && (
+            <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+              {prediction.predicted_winner === "home" ? match.home_team : match.away_team} qualifié
+            </span>
+          )}
         </div>
       </div>
 
       {match.finished &&
         match.home_score !== null &&
         match.away_score !== null && (
-          <p className="mt-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Résultat : {match.home_score} – {match.away_score}
-            {match.winner && (
-              <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
-                ({match.winner === "home" ? match.home_team : match.away_team} qualifié)
-              </span>
+          <div className="mt-3 text-sm">
+            <p className="font-medium text-zinc-700 dark:text-zinc-300">
+              Résultat : {match.home_score} – {match.away_score}
+              {match.winner && (
+                <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  ({match.winner === "home" ? match.home_team : match.away_team} qualifié)
+                </span>
+              )}
+            </p>
+            {prediction && (
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Votre pronostic : {prediction.predicted_home_score} – {prediction.predicted_away_score}
+                {prediction.predicted_winner && (
+                  <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    ({prediction.predicted_winner === "home" ? match.home_team : match.away_team} qualifié)
+                  </span>
+                )}
+              </p>
             )}
-          </p>
+          </div>
         )}
 
       {match.finished && userScore && (
@@ -193,12 +210,12 @@ export function MatchCard({
         </div>
 
         {isDrawPrediction && canPredict && (
-          <fieldset>
-            <legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Vainqueur en cas d'égalité
+          <fieldset className="rounded-lg bg-amber-50 border border-amber-200 p-3 dark:bg-amber-950/30 dark:border-amber-800">
+            <legend className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+              ⚠️ Score égal - Vainqueur en cas d'égalité
             </legend>
-            <div className="mt-2 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
                 <input
                   type="radio"
                   name={`winner-${match.id}`}
@@ -206,10 +223,11 @@ export function MatchCard({
                   checked={predictedWinner === "home"}
                   onChange={() => setPredictedWinner("home")}
                   disabled={submitting}
+                  className="w-4 h-4 text-amber-600"
                 />
-                {match.home_team}
+                <span className="font-medium">{match.home_team}</span>
               </label>
-              <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+              <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer">
                 <input
                   type="radio"
                   name={`winner-${match.id}`}
@@ -217,10 +235,14 @@ export function MatchCard({
                   checked={predictedWinner === "away"}
                   onChange={() => setPredictedWinner("away")}
                   disabled={submitting}
+                  className="w-4 h-4 text-amber-600"
                 />
-                {match.away_team}
+                <span className="font-medium">{match.away_team}</span>
               </label>
             </div>
+            <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+              En phase à élimination directe, vous devez sélectionner l'équipe qui se qualifie en cas d'égalité.
+            </p>
           </fieldset>
         )}
 
