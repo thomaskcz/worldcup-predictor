@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { supabase } from "@/lib/supabaseClient";
-import type { Match, Prediction } from "@/types/database";
+import type { Match, Prediction, UserScore } from "@/types/database";
 
 type Tab = "upcoming" | "live" | "finished";
 
@@ -14,6 +14,9 @@ export function MatchesList() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [predictionsByMatchId, setPredictionsByMatchId] = useState<
     Record<string, Prediction>
+  >({});
+  const [userScoresByMatchId, setUserScoresByMatchId] = useState<
+    Record<string, UserScore>
   >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export function MatchesList() {
       setLoading(true);
       setError(null);
 
-      const [matchesResult, predictionsResult] = await Promise.all([
+      const [matchesResult, predictionsResult, userScoresResult] = await Promise.all([
         supabase
           .from("matches")
           .select(
@@ -56,11 +59,18 @@ export function MatchesList() {
             "id, user_id, match_id, predicted_home_score, predicted_away_score, predicted_winner, created_at"
           )
           .eq("user_id", user.id),
+        supabase
+          .from("user_scores")
+          .select(
+            "id, user_id, match_id, score, stage, breakdown_json, computed_at"
+          )
+          .eq("user_id", user.id),
       ]);
 
       console.log("[MatchesList] Supabase response", {
         matchesResult,
         predictionsResult,
+        userScoresResult,
       });
 
       if (cancelled) {
@@ -79,6 +89,12 @@ export function MatchesList() {
         return;
       }
 
+      if (userScoresResult.error) {
+        setError(userScoresResult.error.message);
+        setLoading(false);
+        return;
+      }
+
       setMatches((matchesResult.data ?? []) as Match[]);
 
       const predictionsMap: Record<string, Prediction> = {};
@@ -86,6 +102,13 @@ export function MatchesList() {
         predictionsMap[prediction.match_id] = prediction;
       }
       setPredictionsByMatchId(predictionsMap);
+
+      const userScoresMap: Record<string, UserScore> = {};
+      for (const userScore of (userScoresResult.data ?? []) as UserScore[]) {
+        userScoresMap[userScore.match_id] = userScore;
+      }
+      setUserScoresByMatchId(userScoresMap);
+
       setLoading(false);
     })();
 
@@ -181,6 +204,7 @@ export function MatchesList() {
               key={`${match.id}-${predictionsByMatchId[match.id]?.id ?? "new"}`}
               match={match}
               prediction={predictionsByMatchId[match.id] ?? null}
+              userScore={userScoresByMatchId[match.id] ?? null}
               userId={user.id}
               onPredictionSaved={handlePredictionSaved}
             />

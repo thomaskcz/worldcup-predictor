@@ -10,15 +10,18 @@ import {
   isKnockoutStage,
   isPredictionOpen,
 } from "@/lib/matches";
+import { ScoreBreakdown } from "@/components/matches/ScoreBreakdown";
 import type {
   KnockoutWinnerPick,
   Match,
   Prediction,
+  UserScore,
 } from "@/types/database";
 
 type MatchCardProps = {
   match: Match;
   prediction: Prediction | null;
+  userScore: UserScore | null;
   userId: string;
   onPredictionSaved: (prediction: Prediction) => void;
 };
@@ -26,6 +29,7 @@ type MatchCardProps = {
 export function MatchCard({
   match,
   prediction,
+  userScore,
   userId,
   onPredictionSaved,
 }: MatchCardProps) {
@@ -147,6 +151,14 @@ export function MatchCard({
             Résultat : {match.home_score} – {match.away_score}
           </p>
         )}
+
+      {match.finished && userScore && (
+        <ScoreBreakdown
+          userScore={userScore}
+          match={match}
+          prediction={prediction}
+        />
+      )}
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
