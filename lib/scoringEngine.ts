@@ -216,18 +216,16 @@ function scoreKnockoutStage(
     prediction.predicted_away_score
   );
 
+  // Use the appropriate exact score rule based on whether the score-based outcome was correct
+  // If the wrong_1N2 rule doesn't exist (for backward compatibility), use the correct_1N2 rule
+  const exactScoreRule = scoreBasedOutcomeCorrect
+    ? rules.exact_score_per_team_if_correct_1N2
+    : (rules.exact_score_per_team_if_wrong_1N2 || rules.exact_score_per_team_if_correct_1N2);
+
   const breakdown: ScoreBreakdown = {
     base: scoreBasedOutcomeCorrect ? rules.correct_1N2 : 0,
-    home_exact_bonus: homeExact
-      ? (scoreBasedOutcomeCorrect
-          ? rules.exact_score_per_team_if_correct_1N2
-          : rules.exact_score_per_team_if_correct_1N2)
-      : 0,
-    away_exact_bonus: awayExact
-      ? (scoreBasedOutcomeCorrect
-          ? rules.exact_score_per_team_if_correct_1N2
-          : rules.exact_score_per_team_if_correct_1N2)
-      : 0,
+    home_exact_bonus: homeExact ? exactScoreRule : 0,
+    away_exact_bonus: awayExact ? exactScoreRule : 0,
     qualified_bonus: rules.correct_qualified_bonus,
     outcome,
     predicted_outcome: predictedOutcome,

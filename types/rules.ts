@@ -8,6 +8,7 @@ export type GroupStageRules = {
 export type KnockoutStageRules = {
   correct_1N2: number;
   exact_score_per_team_if_correct_1N2: number;
+  exact_score_per_team_if_wrong_1N2: number;
   correct_qualified_bonus: number;
 };
 
