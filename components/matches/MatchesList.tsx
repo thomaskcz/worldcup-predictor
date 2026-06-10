@@ -7,6 +7,8 @@ import { MatchCard } from "@/components/matches/MatchCard";
 import { supabase } from "@/lib/supabaseClient";
 import type { Match, Prediction } from "@/types/database";
 
+type Tab = "upcoming" | "live" | "finished";
+
 export function MatchesList() {
   const { user, loading: authLoading } = useAuth();
   const [matches, setMatches] = useState<Match[]>([]);
@@ -15,6 +17,20 @@ export function MatchesList() {
   >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>("upcoming");
+
+  const filteredMatches = matches.filter((match) => {
+    const isFinished = match.finished;
+    const hasStarted = new Date(match.start_time) <= new Date();
+
+    if (activeTab === "upcoming") {
+      return !isFinished && !hasStarted;
+    }
+    if (activeTab === "live") {
+      return !isFinished && hasStarted;
+    }
+    return isFinished;
+  });
 
   useEffect(() => {
     if (authLoading || !user) {
@@ -133,16 +149,44 @@ export function MatchesList() {
   }
 
   return (
-    <div className="space-y-4">
-      {matches.map((match) => (
-        <MatchCard
-          key={`${match.id}-${predictionsByMatchId[match.id]?.id ?? "new"}`}
-          match={match}
-          prediction={predictionsByMatchId[match.id] ?? null}
-          userId={user.id}
-          onPredictionSaved={handlePredictionSaved}
-        />
-      ))}
+    <div className="space-y-6">
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        {[
+          { id: "upcoming", label: "À pronostiquer" },
+          { id: "live", label: "En cours / en attente" },
+          { id: "finished", label: "Terminés" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as Tab)}
+            className={`px-4 py-2 text-sm font-medium ${
+              activeTab === tab.id
+                ? "border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredMatches.length === 0 ? (
+        <p className="text-zinc-600 dark:text-zinc-400">
+          Aucun match dans cette catégorie.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {filteredMatches.map((match) => (
+            <MatchCard
+              key={`${match.id}-${predictionsByMatchId[match.id]?.id ?? "new"}`}
+              match={match}
+              prediction={predictionsByMatchId[match.id] ?? null}
+              userId={user.id}
+              onPredictionSaved={handlePredictionSaved}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
