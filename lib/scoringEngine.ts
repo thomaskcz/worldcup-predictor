@@ -158,13 +158,20 @@ function scoreKnockoutStage(
   const homeScore = match.home_score!;
   const awayScore = match.away_score!;
   const outcome = getOutcome(homeScore, awayScore);
-  const predictedOutcome = getOutcome(
+
+  // In knockout, predicted outcome should be based on predicted qualifier if score is draw
+  let predictedOutcome = getOutcome(
     prediction.predicted_home_score,
     prediction.predicted_away_score
   );
 
   const actualQualifier = getQualifier(homeScore, awayScore);
   const predictedQualifier = getPredictedQualifier(prediction, match.stage);
+
+  // If prediction is a draw with a winner pick, use the winner as the predicted outcome
+  if (predictedOutcome === "draw" && predictedQualifier) {
+    predictedOutcome = predictedQualifier === "home" ? "home" : "away";
+  }
 
   if (actualQualifier === null) {
     return {
@@ -202,18 +209,29 @@ function scoreKnockoutStage(
   const homeExact = homeScore === prediction.predicted_home_score;
   const awayExact = awayScore === prediction.predicted_away_score;
 
+  // In knockout, we only give points for correct qualifier, not for "correct 1N2" based on scores
+  // The base points (correct_1N2) should only be given if the score-based prediction was actually correct
+  const scoreBasedOutcomeCorrect = outcome === getOutcome(
+    prediction.predicted_home_score,
+    prediction.predicted_away_score
+  );
+
   const breakdown: ScoreBreakdown = {
-    base: rules.correct_1N2,
+    base: scoreBasedOutcomeCorrect ? rules.correct_1N2 : 0,
     home_exact_bonus: homeExact
-      ? rules.exact_score_per_team_if_correct_1N2
+      ? (scoreBasedOutcomeCorrect
+          ? rules.exact_score_per_team_if_correct_1N2
+          : rules.exact_score_per_team_if_correct_1N2)
       : 0,
     away_exact_bonus: awayExact
-      ? rules.exact_score_per_team_if_correct_1N2
+      ? (scoreBasedOutcomeCorrect
+          ? rules.exact_score_per_team_if_correct_1N2
+          : rules.exact_score_per_team_if_correct_1N2)
       : 0,
     qualified_bonus: rules.correct_qualified_bonus,
     outcome,
     predicted_outcome: predictedOutcome,
-    correct_outcome: true,
+    correct_outcome: scoreBasedOutcomeCorrect,
   };
 
   return {
