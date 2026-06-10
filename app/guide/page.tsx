@@ -116,35 +116,6 @@ export default function GuidePage() {
                     Après avoir sélectionné votre score, vous devez cliquer sur le bouton "Enregistrer" pour valider votre pronostic. Un pronostic non enregistré ne sera pas pris en compte.
                   </p>
                 </div>
-                <div className="rounded-xl bg-white p-4 shadow-sm dark:bg-zinc-950">
-                  <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">
-                    Indicateurs visuels
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-3 h-3 rounded-full bg-zinc-300 dark:bg-zinc-600 mt-1 flex-shrink-0"></div>
-                      <div>
-                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          Pronostic non enregistré
-                        </p>
-                        <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                          Le bouton "Enregistrer" est visible et actif (généralement en couleur). Votre sélection n'est pas encore sauvegardée.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500 mt-1 flex-shrink-0"></div>
-                      <div>
-                        <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          Pronostic enregistré
-                        </p>
-                        <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                          Le bouton disparaît ou devient grisé/désactivé. Un indicateur vert ✓ apparaît pour confirmer l'enregistrement.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </section>
