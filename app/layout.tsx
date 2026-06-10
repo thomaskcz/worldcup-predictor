@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "RikaiRok World Cup",
   description: "Prédisez les matchs de la Coupe du Monde et compétitionnez sur le classement.",
+  icons: {
+    icon: "public/favicon.ico",
+  },
 };
 
 export default function RootLayout({
