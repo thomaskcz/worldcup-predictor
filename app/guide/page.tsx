@@ -14,7 +14,7 @@ export default function GuidePage() {
         {/* Introduction */}
         <Card variant="festive">
           <div className="flex items-start gap-4">
-            <span className="text-5xl animate-pulse">⚽</span>
+            <span className="text-5xl">⚽</span>
             <div>
               <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
                 Bienvenue sur RikaiRok World Cup !
