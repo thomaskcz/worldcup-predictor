@@ -50,7 +50,7 @@ export function MatchesList() {
         supabase
           .from("matches")
           .select(
-            "id, home_team, away_team, home_score, away_score, start_time, stage, finished"
+            "id, home_team, away_team, home_score, away_score, winner, start_time, stage, finished"
           )
           .order("start_time", { ascending: true }),
         supabase

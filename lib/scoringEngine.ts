@@ -22,7 +22,8 @@ export function getOutcome(homeScore: number, awayScore: number): Outcome {
 
 export function getQualifier(
   homeScore: number,
-  awayScore: number
+  awayScore: number,
+  winner: KnockoutWinnerPick | null = null
 ): KnockoutWinnerPick | null {
   if (homeScore > awayScore) {
     return "home";
@@ -32,7 +33,8 @@ export function getQualifier(
     return "away";
   }
 
-  return null;
+  // If scores are tied, use the winner field if available
+  return winner;
 }
 
 function getPredictedQualifier(
@@ -165,7 +167,7 @@ function scoreKnockoutStage(
     prediction.predicted_away_score
   );
 
-  const actualQualifier = getQualifier(homeScore, awayScore);
+  const actualQualifier = getQualifier(homeScore, awayScore, match.winner);
   const predictedQualifier = getPredictedQualifier(prediction, match.stage);
 
   // If prediction is a draw with a winner pick, use the winner as the predicted outcome

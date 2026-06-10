@@ -36,7 +36,7 @@ export async function recalculateScores(
   const { data: matches, error: matchesError } = await supabase
     .from("matches")
     .select(
-      "id, home_team, away_team, home_score, away_score, start_time, stage, finished, updated_at"
+      "id, home_team, away_team, home_score, away_score, winner, start_time, stage, finished, updated_at"
     )
     .eq("finished", true);
 

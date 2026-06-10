@@ -25,6 +25,7 @@ export type Match = {
   away_team: string;
   home_score: number | null;
   away_score: number | null;
+  winner: KnockoutWinnerPick | null;
   start_time: string;
   stage: MatchStage;
   finished: boolean;

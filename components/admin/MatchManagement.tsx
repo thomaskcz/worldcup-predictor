@@ -15,6 +15,13 @@ export function MatchManagement() {
   const [stage, setStage] = useState("group");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  const [editingMatch, setEditingMatch] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    home_score: "",
+    away_score: "",
+    winner: "",
+    finished: false,
+  });
 
   const stages = [
     "group",
@@ -103,6 +110,66 @@ export function MatchManagement() {
     }
   }
 
+  function handleEditMatch(match: Match) {
+    setEditingMatch(match.id);
+    setEditForm({
+      home_score: match.home_score?.toString() || "",
+      away_score: match.away_score?.toString() || "",
+      winner: match.winner || "",
+      finished: match.finished,
+    });
+  }
+
+  function handleCancelEdit() {
+    setEditingMatch(null);
+    setEditForm({
+      home_score: "",
+      away_score: "",
+      winner: "",
+      finished: false,
+    });
+  }
+
+  async function handleSaveMatch(matchId: string) {
+    const updateData: any = {
+      finished: editForm.finished,
+    };
+
+    if (editForm.home_score !== "") {
+      updateData.home_score = parseInt(editForm.home_score, 10);
+    }
+    if (editForm.away_score !== "") {
+      updateData.away_score = parseInt(editForm.away_score, 10);
+    }
+    if (editForm.winner !== "") {
+      updateData.winner = editForm.winner;
+    }
+
+    const { error } = await supabase
+      .from("matches")
+      .update(updateData)
+      .eq("id", matchId);
+
+    if (error) {
+      console.error("Error updating match:", error);
+      alert("Erreur lors de la mise à jour du match");
+    } else {
+      fetchMatches();
+      handleCancelEdit();
+    }
+  }
+
+  function isKnockoutStage(stage: string) {
+    return [
+      "round_of_32",
+      "round_of_16",
+      "quarter_final",
+      "semi_final",
+      "third_place",
+      "final",
+    ].includes(stage);
+  }
+
   if (loading) return <div>Chargement des matchs...</div>;
 
   return (
@@ -155,6 +222,7 @@ export function MatchManagement() {
             <th className="px-3 py-2 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">Équipe 2</th>
             <th className="px-3 py-2 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">Phase</th>
             <th className="px-3 py-2 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">Date/Heure</th>
+            <th className="px-3 py-2 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">Score</th>
             <th className="px-3 py-2 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">Statut</th>
             <th className="px-3 py-2 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">Actions</th>
           </tr>
@@ -162,14 +230,101 @@ export function MatchManagement() {
         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {matches.map((match) => (
             <tr key={match.id}>
-              <td className="px-3 py-2 text-sm">{match.home_team}</td>
-              <td className="px-3 py-2 text-sm">{match.away_team}</td>
-              <td className="px-3 py-2 text-sm">{match.stage}</td>
-              <td className="px-3 py-2 text-sm">{new Date(match.start_time).toLocaleString()}</td>
-              <td className="px-3 py-2 text-sm">{match.finished ? "Terminé" : "Programmé"}</td>
-              <td className="px-3 py-2 text-sm">
-                <button onClick={() => handleDeleteMatch(match.id)} className="text-red-500">Supprimer</button>
-              </td>
+              {editingMatch === match.id ? (
+                <>
+                  <td className="px-3 py-2 text-sm">{match.home_team}</td>
+                  <td className="px-3 py-2 text-sm">{match.away_team}</td>
+                  <td className="px-3 py-2 text-sm">{match.stage}</td>
+                  <td className="px-3 py-2 text-sm">{new Date(match.start_time).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-sm">
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        value={editForm.home_score}
+                        onChange={(e) => setEditForm({ ...editForm, home_score: e.target.value })}
+                        className="w-12 border px-1 py-0.5 text-sm"
+                      />
+                      <span>-</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={editForm.away_score}
+                        onChange={(e) => setEditForm({ ...editForm, away_score: e.target.value })}
+                        className="w-12 border px-1 py-0.5 text-sm"
+                      />
+                    </div>
+                    {isKnockoutStage(match.stage) && (
+                      <select
+                        value={editForm.winner}
+                        onChange={(e) => setEditForm({ ...editForm, winner: e.target.value })}
+                        className="mt-1 w-full border px-1 py-0.5 text-xs"
+                      >
+                        <option value="">Pas de vainqueur</option>
+                        <option value="home">{match.home_team}</option>
+                        <option value="away">{match.away_team}</option>
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-sm">
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={editForm.finished}
+                        onChange={(e) => setEditForm({ ...editForm, finished: e.target.checked })}
+                        className="w-4 h-4"
+                      />
+                      Terminé
+                    </label>
+                  </td>
+                  <td className="px-3 py-2 text-sm">
+                    <button
+                      onClick={() => handleSaveMatch(match.id)}
+                      className="text-emerald-600 hover:text-emerald-700 mr-2"
+                    >
+                      Sauvegarder
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="text-zinc-600 hover:text-zinc-700"
+                    >
+                      Annuler
+                    </button>
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td className="px-3 py-2 text-sm">{match.home_team}</td>
+                  <td className="px-3 py-2 text-sm">{match.away_team}</td>
+                  <td className="px-3 py-2 text-sm">{match.stage}</td>
+                  <td className="px-3 py-2 text-sm">{new Date(match.start_time).toLocaleString()}</td>
+                  <td className="px-3 py-2 text-sm">
+                    {match.home_score !== null && match.away_score !== null
+                      ? `${match.home_score} - ${match.away_score}`
+                      : "-"}
+                    {match.winner && (
+                      <span className="ml-1 text-xs text-zinc-500">
+                        ({match.winner === "home" ? match.home_team : match.away_team})
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-sm">{match.finished ? "Terminé" : "Programmé"}</td>
+                  <td className="px-3 py-2 text-sm">
+                    <button
+                      onClick={() => handleEditMatch(match)}
+                      className="text-blue-500 hover:text-blue-600 mr-2"
+                    >
+                      Éditer
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMatch(match.id)}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      Supprimer
+                    </button>
+                  </td>
+                </>
+              )}
             </tr>
           ))}
         </tbody>

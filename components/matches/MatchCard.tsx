@@ -149,6 +149,11 @@ export function MatchCard({
         match.away_score !== null && (
           <p className="mt-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Résultat : {match.home_score} – {match.away_score}
+            {match.winner && (
+              <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                ({match.winner === "home" ? match.home_team : match.away_team} qualifié)
+              </span>
+            )}
           </p>
         )}
 
