@@ -14,10 +14,7 @@ export default function AdminPage() {
 
   if (loading || !user || !user.is_admin) {
     return (
-        <AdminGuard>
-          <PageContainer title="Admin" description="Tu sais pas lire ? C'est écrit admin et je crois pas que t'en sois un alors passe ton chemin.">
-          </PageContainer>
-        </AdminGuard>
+          <PageContainer title="Admin" description="Tu sais pas lire ? C'est écrit admin et je crois pas que t'en sois un alors passe ton chemin."/>
     );
   }
 
