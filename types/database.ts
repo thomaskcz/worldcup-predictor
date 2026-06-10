@@ -104,3 +104,16 @@ export type LeaderboardRow = {
   nickname: string | null;
   total_score: number;
 };
+
+export type LeaderboardDetailedRow = {
+  user_id: string;
+  email: string;
+  nickname: string | null;
+  total_points: number;
+  match_points: number;
+  competition_points: number;
+  correct_predictions_count: number;
+  exact_score_count: number;
+  group_stage_points: number;
+  knockout_points: number;
+};

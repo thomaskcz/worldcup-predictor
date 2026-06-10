@@ -2,7 +2,7 @@ import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
 import { RecalculateScoresButton } from "@/components/leaderboard/RecalculateScoresButton";
 import { PageContainer } from "@/components/PageContainer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { LeaderboardRow } from "@/types/database";
+import type { LeaderboardDetailedRow } from "@/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -10,17 +10,17 @@ export default async function LeaderboardPage() {
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
-    .from("leaderboard_view")
-    .select("user_id, email, nickname, total_score");
+    .from("leaderboard_detailed_view")
+    .select("*");
 
-  console.log("[LeaderboardPage] Supabase leaderboard_view response", {
+  console.log("[LeaderboardPage] Supabase leaderboard_detailed_view response", {
     data,
     error,
   });
 
-  const rows = ((data ?? []) as LeaderboardRow[]).sort((left, right) => {
-    if (right.total_score !== left.total_score) {
-      return right.total_score - left.total_score;
+  const rows = ((data ?? []) as LeaderboardDetailedRow[]).sort((left, right) => {
+    if (right.total_points !== left.total_points) {
+      return right.total_points - left.total_points;
     }
 
     return left.email.localeCompare(right.email);

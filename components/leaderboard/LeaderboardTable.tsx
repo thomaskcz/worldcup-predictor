@@ -1,14 +1,8 @@
 import { getDisplayName } from "@/lib/displayName";
-
-type LeaderboardRow = {
-  user_id: string;
-  email: string;
-  nickname: string | null;
-  total_score: number;
-};
+import type { LeaderboardDetailedRow } from "@/types/database";
 
 type LeaderboardTableProps = {
-  rows: LeaderboardRow[];
+  rows: LeaderboardDetailedRow[];
 };
 
 function getRankClassName(rank: number): string {
@@ -48,7 +42,19 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
               Utilisateur
             </th>
             <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Score total
+              Matchs
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Compétition
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              1N2
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Score Exact
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Total
             </th>
           </tr>
         </thead>
@@ -68,7 +74,19 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
                   {getDisplayName(row)}
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                  {row.total_score}
+                  {row.match_points}
+                </td>
+                <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  {row.competition_points}
+                </td>
+                <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  {row.correct_predictions_count}
+                </td>
+                <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  {row.exact_score_count}
+                </td>
+                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  {row.total_points}
                 </td>
               </tr>
             );
