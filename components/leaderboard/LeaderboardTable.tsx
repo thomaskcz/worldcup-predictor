@@ -42,19 +42,22 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
               Utilisateur
             </th>
             <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Matchs
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Compétition
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              1N2
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Score Exact
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               Total
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Score sur les matchs
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Score sur les qualifiés
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Score sur les finalistes
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Bons Pronos
+            </th>
+            <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Scores Exacts
             </th>
           </tr>
         </thead>
@@ -73,20 +76,23 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
                 <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                   {getDisplayName(row)}
                 </td>
+                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  {row.total_points}
+                </td>
                 <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
                   {row.match_points}
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                  {row.competition_points}
+                  {row.group_stage_points}
+                </td>
+                <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                  {row.knockout_points}
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
                   {row.correct_predictions_count}
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-medium text-zinc-900 dark:text-zinc-50">
                   {row.exact_score_count}
-                </td>
-                <td className="px-4 py-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                  {row.total_points}
                 </td>
               </tr>
             );
