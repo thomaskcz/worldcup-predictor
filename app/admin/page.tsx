@@ -13,7 +13,12 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"live" | "management" >("live");
 
   if (loading || !user || !user.is_admin) {
-    return null;
+    return (
+        <AdminGuard>
+          <PageContainer title="Admin" description="Tu sais pas lire ? C'est écrit admin et je crois pas que t'en sois un alors passe ton chemin.">
+          </PageContainer>
+        </AdminGuard>
+    );
   }
 
   return (
