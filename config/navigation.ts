@@ -6,6 +6,7 @@ export const navItems: NavItem[] = [
   { href: "/competition-predictions", label: "Predictions" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/rules", label: "Rules" },
+  { href: "/admin", label: "Admin" },
   { href: "/settings", label: "Settings" },
   { href: "/auth", label: "Login" },
 ];
