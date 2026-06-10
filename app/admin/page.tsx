@@ -6,9 +6,15 @@ import { PageContainer } from "@/components/PageContainer";
 // Assuming I will create these components
 import { MatchManagement } from "@/components/admin/MatchManagement";
 import { LiveMatches } from "@/components/admin/LiveMatches";
+import {useAuth} from "@/components/AuthProvider";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"management" | "live">("management");
+  const { user, loading } = useAuth();
+  const [activeTab, setActiveTab] = useState<"management" | "live">("live");
+
+  if (loading || !user || !user.is_admin) {
+    return null;
+  }
 
   return (
     <AdminGuard>
@@ -37,8 +43,8 @@ export default function AdminPage() {
             </button>
           </div>
           <div>
-            {activeTab === "management" && <MatchManagement />}
             {activeTab === "live" && <LiveMatches />}
+            {activeTab === "management" && <MatchManagement />}
           </div>
         </div>
       </PageContainer>
