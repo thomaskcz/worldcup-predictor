@@ -239,7 +239,18 @@ export function computePredictionScore(
   }
 
   const rulesKey = getRulesKeyForStage(match.stage);
-  const stageRules = rulesJson.rules.match_predictions[rulesKey];
+
+  // Handle both old structure (with stages) and new structure (direct)
+  const matchPredictions = rulesJson.rules.match_predictions as any;
+  const stageRules = matchPredictions.stages
+    ? matchPredictions.stages[rulesKey]
+    : matchPredictions[rulesKey];
+
+  if (!stageRules) {
+    throw new Error(`No rules found for stage: ${match.stage}, rulesKey: ${rulesKey}`);
+  }
+
+  const specialRules = rulesJson.rules.special_rules as any;
 
   if (match.stage === "group") {
     return scoreGroupStage(
@@ -253,6 +264,6 @@ export function computePredictionScore(
     match,
     prediction,
     stageRules as KnockoutStageRules,
-    rulesJson.rules.special_rules
+    specialRules
   );
 }

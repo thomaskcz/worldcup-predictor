@@ -8,6 +8,8 @@ export function MatchManagement() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcMessage, setRecalcMessage] = useState("");
   const [homeTeam, setHomeTeam] = useState("");
   const [awayTeam, setAwayTeam] = useState("");
   const [stage, setStage] = useState("group");
@@ -74,6 +76,33 @@ export function MatchManagement() {
     setLoading(false);
   }
 
+  async function handleRecalculateScores() {
+    setRecalculating(true);
+    setRecalcMessage("");
+
+    try {
+      const response = await fetch("/api/recalculate-scores", {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to recalculate scores");
+      }
+
+      setRecalcMessage(
+        `Succès ! ${data.processedMatches} matchs traités, ${data.upsertedScores} scores mis à jour.`
+      );
+    } catch (error) {
+      setRecalcMessage(
+        `Erreur : ${error instanceof Error ? error.message : "Erreur inconnue"}`
+      );
+    } finally {
+      setRecalculating(false);
+    }
+  }
+
   if (loading) return <div>Chargement des matchs...</div>;
 
   return (
@@ -97,6 +126,27 @@ export function MatchManagement() {
           <button onClick={handleCreateMatch} className="bg-blue-500 text-white px-2 py-1 rounded">Créer</button>
         </div>
       </div>
+
+      <div className="p-4 border rounded bg-zinc-50 dark:bg-zinc-900">
+        <h3 className="font-semibold mb-2">Recalculer les scores</h3>
+        <button
+          onClick={handleRecalculateScores}
+          disabled={recalculating}
+          className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 disabled:bg-zinc-400 disabled:cursor-not-allowed"
+        >
+          {recalculating ? "Recalcul en cours..." : "Recalculer tous les scores"}
+        </button>
+        {recalcMessage && (
+          <div className={`mt-2 p-2 rounded text-sm ${
+            recalcMessage.startsWith("Erreur")
+              ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+              : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+          }`}>
+            {recalcMessage}
+          </div>
+        )}
+      </div>
+
       <h2 className="text-xl font-semibold">Gestion des matchs</h2>
       <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
         <thead>
