@@ -39,7 +39,7 @@ export function NicknameEditor() {
       e.preventDefault();
 
       if (!nickname.trim()) {
-        setErrorMessage("Nickname cannot be empty");
+        setErrorMessage("Le pseudonyme ne peut pas être vide");
         setState("error");
         return;
       }
@@ -58,14 +58,14 @@ export function NicknameEditor() {
         const data = await response.json();
 
         if (!response.ok) {
-          setErrorMessage(data.error || "Failed to update nickname");
+          setErrorMessage(data.error || "Échec de la mise à jour du pseudonyme");
           setState("error");
           return;
         }
 
         if (data.success) {
           setInitialNickname(data.nickname);
-          setSuccessMessage("Nickname updated successfully!");
+          setSuccessMessage("Pseudonyme mis à jour avec succès !");
           setState("success");
 
           // Clear success message after 3 seconds
@@ -74,12 +74,12 @@ export function NicknameEditor() {
             setSuccessMessage("");
           }, 3000);
         } else {
-          setErrorMessage(data.error || "Failed to update nickname");
+          setErrorMessage(data.error || "Échec de la mise à jour du pseudonyme");
           setState("error");
         }
       } catch (error) {
         console.error("Error updating nickname:", error);
-        setErrorMessage("An error occurred. Please try again.");
+        setErrorMessage("Une erreur s'est produite. Veuillez réessayer.");
         setState("error");
       }
     },
@@ -99,10 +99,10 @@ export function NicknameEditor() {
     <div className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
       <div>
         <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Display Name
+          Nom d'affichage
         </h3>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Set a unique nickname to display throughout the app instead of your email.
+          Définissez un pseudonyme unique pour afficher dans toute l'application au lieu de votre email.
         </p>
       </div>
 
@@ -112,7 +112,7 @@ export function NicknameEditor() {
             htmlFor="nickname"
             className="block text-sm font-medium text-zinc-900 dark:text-zinc-100"
           >
-            Nickname
+            Pseudonyme
           </label>
           <input
             id="nickname"
@@ -128,7 +128,7 @@ export function NicknameEditor() {
             className="mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-500 disabled:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder-zinc-400 dark:disabled:bg-zinc-700"
           />
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            3-20 characters, lowercase letters, numbers, underscores, and hyphens only
+            3-20 caractères, lettres minuscules, chiffres, tirets du bas et tirets uniquement
           </p>
         </div>
 
@@ -154,7 +154,7 @@ export function NicknameEditor() {
             disabled={state === "loading" || !hasChanges}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
           >
-            {state === "loading" ? "Saving..." : "Save Nickname"}
+            {state === "loading" ? "Enregistrement..." : "Enregistrer le pseudonyme"}
           </button>
           {hasChanges && (
             <button
@@ -163,7 +163,7 @@ export function NicknameEditor() {
               disabled={state === "loading"}
               className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:disabled:bg-zinc-700"
             >
-              Cancel
+              Annuler
             </button>
           )}
         </div>
@@ -171,7 +171,7 @@ export function NicknameEditor() {
         {initialNickname && (
           <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800">
             <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Current nickname: <span className="font-semibold">{initialNickname}</span>
+              Pseudonyme actuel : <span className="font-semibold">{initialNickname}</span>
             </p>
           </div>
         )}

@@ -7,8 +7,8 @@ export default function SettingsPage() {
     <AuthGuard>
       <>
         <PageContainer
-          title="Settings"
-          description="Manage your profile and preferences."
+          title="Paramètres"
+          description="Gérer votre profil et vos préférences."
         />
         <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-10 sm:px-6">
           <div className="space-y-6">

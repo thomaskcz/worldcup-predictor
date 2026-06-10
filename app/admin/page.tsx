@@ -20,7 +20,7 @@ export default function AdminPage() {
 
   return (
     <AdminGuard>
-      <PageContainer title="Admin" description="Manage matches and scores.">
+      <PageContainer title="Admin" description="Gérer les matchs et les scores.">
         <div className="space-y-4">
           <div className="flex border-b border-zinc-200 dark:border-zinc-800">
             <button
@@ -31,7 +31,7 @@ export default function AdminPage() {
                         : "text-zinc-600 dark:text-zinc-400"
                 }`}
             >
-              Live Matches
+              Matchs en direct
             </button>
             <button
               onClick={() => setActiveTab("management")}
@@ -41,7 +41,7 @@ export default function AdminPage() {
                   : "text-zinc-600 dark:text-zinc-400"
               }`}
             >
-              Match Management
+              Gestion des matchs
             </button>
           </div>
           <div>

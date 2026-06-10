@@ -23,13 +23,13 @@ export function getMatchStatus(match: Match): MatchStatus {
 }
 
 const STAGE_LABELS: Record<MatchStage, string> = {
-  group: "Group stage",
-  round_of_32: "Round of 32",
-  round_of_16: "Round of 16",
-  quarter_final: "Quarter-final",
-  semi_final: "Semi-final",
-  third_place: "Third place",
-  final: "Final",
+  group: "Phase de groupes",
+  round_of_32: "Seizièmes de finale",
+  round_of_16: "Huitièmes de finale",
+  quarter_final: "Quarts de finale",
+  semi_final: "Demi-finales",
+  third_place: "Match pour la 3ème place",
+  final: "Finale",
 };
 
 export function formatMatchStage(stage: MatchStage): string {
@@ -44,9 +44,9 @@ export function formatMatchDateTime(startTime: string): string {
 }
 
 const STATUS_LABELS: Record<MatchStatus, string> = {
-  upcoming: "Upcoming",
-  live: "Live",
-  finished: "Finished",
+  upcoming: "À venir",
+  live: "En direct",
+  finished: "Terminé",
 };
 
 export function formatMatchStatus(status: MatchStatus): string {

@@ -9,7 +9,7 @@ export function Header() {
           href="/"
           className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
         >
-          World Cup Predictor
+          RikaiRok World Cup
         </Link>
         <nav className="flex flex-wrap gap-x-1 gap-y-2 sm:justify-end">
           {navItems.map((item) => (

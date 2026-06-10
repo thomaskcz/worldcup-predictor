@@ -43,12 +43,12 @@ export function LiveMatches() {
     }
   }
 
-  if (loading) return <div>Loading live matches...</div>;
+  if (loading) return <div>Chargement des matchs en direct...</div>;
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Live Matches</h2>
-      {matches.length === 0 && <p>No live matches.</p>}
+      <h2 className="text-xl font-semibold">Matchs en direct</h2>
+      {matches.length === 0 && <p>Aucun match en direct.</p>}
       <div className="grid gap-4">
         {matches.map((match) => (
           <LiveMatchRow key={match.id} match={match} onUpdate={updateScore} />
@@ -70,9 +70,9 @@ function LiveMatchRow({ match, onUpdate }: { match: Match, onUpdate: (m: Match, 
       <input type="number" value={away_score} onChange={(e) => setAwayScore(parseInt(e.target.value))} className="w-16 border p-1" />
       <label>
         <input type="checkbox" checked={finished} onChange={(e) => setFinished(e.target.checked)} />
-        Finished
+        Terminé
       </label>
-      <button onClick={() => onUpdate(match, home_score, away_score, finished)} className="bg-blue-500 text-white px-2 py-1 rounded">Update</button>
+      <button onClick={() => onUpdate(match, home_score, away_score, finished)} className="bg-blue-500 text-white px-2 py-1 rounded">Mettre à jour</button>
     </div>
   );
 }

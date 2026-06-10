@@ -29,8 +29,8 @@ export default async function LeaderboardPage() {
   return (
     <>
       <PageContainer
-        title="Leaderboard"
-        description="Rankings are based on computed match prediction scores."
+        title="Classement"
+        description="Le classement est basé sur les scores calculés des pronostics de match."
       />
       <div className="mx-auto w-full max-w-5xl flex-1 px-4 pb-10 sm:px-6">
         <RecalculateScoresButton />

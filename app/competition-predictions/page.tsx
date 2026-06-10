@@ -32,7 +32,7 @@ export default async function CompetitionPredictionsPage() {
   ]);
 
   if (teamsError) {
-    throw new Error("Unable to load teams for competition predictions.");
+    throw new Error("Impossible de charger les équipes pour les prévisions de la compétition.");
   }
 
   const predictionResponse = await supabase
@@ -54,8 +54,8 @@ export default async function CompetitionPredictionsPage() {
   return (
     <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <PageContainer
-        title="Competition Predictions"
-        description="Submit your group winners, runners-up, semi-finalists, and finalists before the tournament begins."
+        title="Prévisions de la compétition"
+        description="Soumettez vos vainqueurs de groupe, deuxièmes, demi-finalistes et finalistes avant le début du tournoi."
       />
       <div className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6">
         <CompetitionPredictionsForm

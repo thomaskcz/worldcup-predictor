@@ -20,7 +20,7 @@ export function AuthContent() {
   const displayError =
     error ??
     (urlError === "sign_in_failed"
-      ? "Sign in failed. Please try again."
+      ? "La connexion a échoué. Veuillez réessayer."
       : null);
 
   async function handleSignIn() {
@@ -52,7 +52,7 @@ export function AuthContent() {
   if (loading) {
     return (
       <p className="text-center text-zinc-600 dark:text-zinc-400">
-        Loading session...
+        Chargement de la session...
       </p>
     );
   }
@@ -62,7 +62,7 @@ export function AuthContent() {
       {user ? (
         <div className="flex w-full flex-col items-center gap-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            You are signed in
+            Vous êtes connecté
           </p>
           <p className="text-base font-medium text-zinc-900 dark:text-zinc-50">
             {user.email}
@@ -73,13 +73,13 @@ export function AuthContent() {
             disabled={actionLoading}
             className={secondaryButtonClassName}
           >
-            {actionLoading ? "Signing out..." : "Sign out"}
+            {actionLoading ? "Déconnexion..." : "Se déconnecter"}
           </button>
         </div>
       ) : (
         <div className="flex w-full flex-col items-center gap-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Sign in to access matches and the leaderboard
+            Connectez-vous pour accéder aux matchs et au classement
           </p>
           <button
             type="button"
@@ -87,7 +87,7 @@ export function AuthContent() {
             disabled={actionLoading}
             className={buttonClassName}
           >
-            {actionLoading ? "Redirecting..." : "Sign in with Google"}
+            {actionLoading ? "Redirection..." : "Se connecter avec Google"}
           </button>
         </div>
       )}

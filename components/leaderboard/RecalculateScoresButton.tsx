@@ -34,12 +34,12 @@ export function RecalculateScoresButton() {
     setSubmitting(false);
 
     if (!response.ok) {
-      setError(payload.error ?? "Failed to recalculate scores.");
+      setError(payload.error ?? "Échec du recalcul des scores.");
       return;
     }
 
     setMessage(
-      `Updated ${payload.upsertedScores ?? 0} scores across ${payload.processedMatches ?? 0} matches (${payload.skippedMatches ?? 0} skipped).`
+      `${payload.upsertedScores ?? 0} scores mis à jour sur ${payload.processedMatches ?? 0} matchs (${payload.skippedMatches ?? 0} ignorés).`
     );
     router.refresh();
   }
@@ -52,7 +52,7 @@ export function RecalculateScoresButton() {
         disabled={submitting}
         className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800"
       >
-        {submitting ? "Recalculating..." : "Recalculate scores"}
+        {submitting ? "Recalcul en cours..." : "Recalculer les scores"}
       </button>
 
       {message && (

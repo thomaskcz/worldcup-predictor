@@ -106,12 +106,12 @@ export function CompetitionPredictionsForm({
     setStatusMessage(null);
 
     if (deadlinePassed) {
-      setStatusMessage("The prediction deadline has passed. Your predictions are read-only.");
+      setStatusMessage("La date limite de prévision est passée. Vos prévisions sont en lecture seule.");
       return;
     }
 
     if (hasValidationErrors) {
-      setStatusMessage("Please fix duplicate selections before submitting.");
+      setStatusMessage("Veuillez corriger les sélections en double avant de soumettre.");
       return;
     }
 
@@ -129,12 +129,12 @@ export function CompetitionPredictionsForm({
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to save predictions.");
+        throw new Error(result.error || "Échec de l'enregistrement des prévisions.");
       }
 
-      setStatusMessage("Predictions saved successfully.");
+      setStatusMessage("Prévisions enregistrées avec succès.");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+      const message = error instanceof Error ? error.message : "Une erreur inattendue s'est produite.";
       setStatusMessage(message);
     } finally {
       setSubmitting(false);
@@ -145,7 +145,7 @@ export function CompetitionPredictionsForm({
     return (
       <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-base text-zinc-700 dark:text-zinc-300">
-          There are no teams available yet. Please check back later once the competition teams are loaded.
+          Aucune équipe disponible pour le moment. Veuillez revenir plus tard une fois les équipes de la compétition chargées.
         </p>
       </div>
     );
@@ -161,8 +161,8 @@ export function CompetitionPredictionsForm({
 
           return (
             <div key={group} className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Group {group}</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Pick the top two teams from this group.</p>
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Groupe {group}</h2>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choisissez les deux meilleures équipes de ce groupe.</p>
 
               <div className="mt-4 space-y-4">
                 {(["first", "second"] as const).map((position) => {
@@ -171,14 +171,14 @@ export function CompetitionPredictionsForm({
 
                   return (
                     <label key={`${group}-${position}`} className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      {position === "first" ? "Winner" : "Runner-up"}
+                      {position === "first" ? "Vainqueur" : "Deuxième"}
                       <select
                         value={currentValue}
                         disabled={deadlinePassed}
                         onChange={(event) => handleGroupChange(group, position, event.target.value)}
                         className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
                       >
-                        <option value="">Select a team</option>
+                        <option value="">Sélectionner une équipe</option>
                         {groupOptions.map((team) => (
                           <option
                             key={team.id}
@@ -195,7 +195,7 @@ export function CompetitionPredictionsForm({
               </div>
 
               {duplicate && (
-                <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">Winner and runner-up cannot be the same team.</p>
+                <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">Le vainqueur et le deuxième ne peuvent pas être la même équipe.</p>
               )}
             </div>
           );
@@ -204,8 +204,8 @@ export function CompetitionPredictionsForm({
 
       <div className="space-y-4 rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
         <div>
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Semi-finalists</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choose four teams that will reach the semi-finals.</p>
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Demi-finalistes</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choisissez quatre équipes qui atteindront les demi-finales.</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -213,14 +213,14 @@ export function CompetitionPredictionsForm({
             const duplicate = predictions.semi_finalists.filter(Boolean).filter((teamId) => teamId === value).length > 1;
             return (
               <label key={`semi-${index}`} className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Semi-finalist {index + 1}
+                Demi-finaliste {index + 1}
                 <select
                   value={value}
                   disabled={deadlinePassed}
                   onChange={(event) => handleSemiFinalChange(index, event.target.value)}
                   className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
                 >
-                  <option value="">Select a team</option>
+                  <option value="">Sélectionner une équipe</option>
                   {allTeamOptions.map((option) => {
                     const disabled = predictions.semi_finalists.some(
                       (selected, selectedIndex) => selectedIndex !== index && selected === option.value,
@@ -232,7 +232,7 @@ export function CompetitionPredictionsForm({
                     );
                   })}
                 </select>
-                {duplicate && <span className="mt-1 text-sm text-rose-600 dark:text-rose-400">Duplicate semi-finalists are not allowed.</span>}
+                {duplicate && <span className="mt-1 text-sm text-rose-600 dark:text-rose-400">Les demi-finalistes en double ne sont pas autorisés.</span>}
               </label>
             );
           })}
@@ -241,8 +241,8 @@ export function CompetitionPredictionsForm({
 
       <div className="space-y-4 rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
         <div>
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Finalists</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choose the two teams that will make the final.</p>
+          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Finalistes</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choisissez les deux équipes qui atteindront la finale.</p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -250,14 +250,14 @@ export function CompetitionPredictionsForm({
             const duplicate = predictions.finalists.filter(Boolean).filter((teamId) => teamId === value).length > 1;
             return (
               <label key={`final-${index}`} className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                Finalist {index + 1}
+                Finaliste {index + 1}
                 <select
                   value={value}
                   disabled={deadlinePassed}
                   onChange={(event) => handleFinalChange(index, event.target.value)}
                   className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
                 >
-                  <option value="">Select a team</option>
+                  <option value="">Sélectionner une équipe</option>
                   {allTeamOptions.map((option) => {
                     const disabled = predictions.finalists.some(
                       (selected, selectedIndex) => selectedIndex !== index && selected === option.value,
@@ -269,7 +269,7 @@ export function CompetitionPredictionsForm({
                     );
                   })}
                 </select>
-                {duplicate && <span className="mt-1 text-sm text-rose-600 dark:text-rose-400">Duplicate finalists are not allowed.</span>}
+                {duplicate && <span className="mt-1 text-sm text-rose-600 dark:text-rose-400">Les finalistes en double ne sont pas autorisés.</span>}
               </label>
             );
           })}
@@ -278,8 +278,8 @@ export function CompetitionPredictionsForm({
 
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
         <p>
-          Predictions are editable until the first scheduled match starts.
-          {firstMatchStartTime ? ` Deadline: ${new Date(firstMatchStartTime).toLocaleString()}.` : ""}
+          Les prévisions sont modifiables jusqu'au début du premier match programmé.
+          {firstMatchStartTime ? ` Date limite : ${new Date(firstMatchStartTime).toLocaleString()}.` : ""}
         </p>
       </div>
 
@@ -295,7 +295,7 @@ export function CompetitionPredictionsForm({
           disabled={deadlinePassed || submitting || hasValidationErrors}
           className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-sky-300"
         >
-          {deadlinePassed ? "Deadline passed" : submitting ? "Saving..." : "Save Predictions"}
+          {deadlinePassed ? "Date limite dépassée" : submitting ? "Enregistrement..." : "Enregistrer les prévisions"}
         </button>
       </div>
     </form>

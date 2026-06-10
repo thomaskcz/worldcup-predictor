@@ -31,8 +31,7 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
   if (rows.length === 0) {
     return (
       <p className="text-zinc-600 dark:text-zinc-400">
-        No scores yet. Finish matches and recalculate scores to populate the
-        leaderboard.
+        Aucun score pour le moment. Terminez les matchs et recalculez les scores pour remplir le classement.
       </p>
     );
   }
@@ -43,13 +42,13 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
         <thead className="bg-zinc-50 dark:bg-zinc-950">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Rank
+              Rang
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              User
+              Utilisateur
             </th>
             <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Total score
+              Score total
             </th>
           </tr>
         </thead>

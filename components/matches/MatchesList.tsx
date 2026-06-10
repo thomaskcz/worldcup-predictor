@@ -87,7 +87,7 @@ export function MatchesList() {
 
   if (authLoading) {
     return (
-      <p className="text-zinc-600 dark:text-zinc-400">Loading session...</p>
+      <p className="text-zinc-600 dark:text-zinc-400">Chargement de la session...</p>
     );
   }
 
@@ -95,13 +95,13 @@ export function MatchesList() {
     return (
       <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-zinc-700 dark:text-zinc-300">
-          Please log in to predict matches.
+          Veuillez vous connecter pour pronostiquer les matchs.
         </p>
         <Link
           href="/auth"
           className="mt-4 inline-flex rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
-          Go to login
+          Aller à la connexion
         </Link>
       </div>
     );
@@ -109,7 +109,7 @@ export function MatchesList() {
 
   if (loading) {
     return (
-      <p className="text-zinc-600 dark:text-zinc-400">Loading matches...</p>
+      <p className="text-zinc-600 dark:text-zinc-400">Chargement des matchs...</p>
     );
   }
 
@@ -127,7 +127,7 @@ export function MatchesList() {
   if (matches.length === 0) {
     return (
       <p className="text-zinc-600 dark:text-zinc-400">
-        No matches scheduled yet.
+        Aucun match programmé pour le moment.
       </p>
     );
   }

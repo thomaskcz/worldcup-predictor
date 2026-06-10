@@ -62,12 +62,12 @@ export function MatchCard({
       parsedHome < 0 ||
       parsedAway < 0
     ) {
-      setError("Scores must be non-negative numbers.");
+      setError("Les scores doivent être des nombres non négatifs.");
       return;
     }
 
     if (isDrawPrediction && !predictedWinner) {
-      setError("Select a winner for knockout draw predictions.");
+      setError("Sélectionnez un vainqueur pour les pronostics d'égalité en phase à élimination directe.");
       return;
     }
 
@@ -134,7 +134,7 @@ export function MatchCard({
           </span>
           {prediction && (
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              Your prediction
+              Votre pronostic
             </span>
           )}
         </div>
@@ -144,7 +144,7 @@ export function MatchCard({
         match.home_score !== null &&
         match.away_score !== null && (
           <p className="mt-3 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Result: {match.home_score} – {match.away_score}
+            Résultat : {match.home_score} – {match.away_score}
           </p>
         )}
 
@@ -178,7 +178,7 @@ export function MatchCard({
         {isDrawPrediction && canPredict && (
           <fieldset>
             <legend className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Winner if draw
+              Vainqueur en cas d'égalité
             </legend>
             <div className="mt-2 flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
@@ -209,7 +209,7 @@ export function MatchCard({
 
         {!canPredict && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Predictions are closed for this match.
+            Les pronostics sont clos pour ce match.
           </p>
         )}
 
@@ -224,7 +224,7 @@ export function MatchCard({
 
         {success && (
           <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
-            Prediction saved.
+            Pronostic enregistré.
           </p>
         )}
 
@@ -235,10 +235,10 @@ export function MatchCard({
             className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             {submitting
-              ? "Saving..."
+              ? "Enregistrement..."
               : prediction
-                ? "Update prediction"
-                : "Save prediction"}
+                ? "Mettre à jour le pronostic"
+                : "Enregistrer le pronostic"}
           </button>
         )}
       </form>
