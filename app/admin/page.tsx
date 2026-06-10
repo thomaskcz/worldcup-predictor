@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { PageContainer } from "@/components/PageContainer";
-// Assuming I will create these components
 import { MatchManagement } from "@/components/admin/MatchManagement";
 import { LiveMatches } from "@/components/admin/LiveMatches";
 import {useAuth} from "@/components/AuthProvider";
@@ -21,27 +20,27 @@ export default function AdminPage() {
   return (
     <AdminGuard>
       <PageContainer title="Admin" description="Gérer les matchs et les scores.">
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="flex border-b border-zinc-200 dark:border-zinc-800">
             <button
                 onClick={() => setActiveTab("live")}
-                className={`px-4 py-2 font-medium ${
+                className={`px-5 py-3 text-sm font-semibold transition-all duration-200 ${
                     activeTab === "live"
-                        ? "border-b-2 border-zinc-900 dark:border-zinc-100"
-                        : "text-zinc-600 dark:text-zinc-400"
+                        ? "border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                        : "text-zinc-600 hover:text-zinc-900 hover:border-b-2 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:border-zinc-700"
                 }`}
             >
-              Matchs en direct
+              🔴 Matchs en direct
             </button>
             <button
               onClick={() => setActiveTab("management")}
-              className={`px-4 py-2 font-medium ${
+              className={`px-5 py-3 text-sm font-semibold transition-all duration-200 ${
                 activeTab === "management"
-                  ? "border-b-2 border-zinc-900 dark:border-zinc-100"
-                  : "text-zinc-600 dark:text-zinc-400"
+                  ? "border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                  : "text-zinc-600 hover:text-zinc-900 hover:border-b-2 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:border-zinc-700"
               }`}
             >
-              Gestion des matchs
+              ⚙️ Gestion des matchs
             </button>
           </div>
           <div>

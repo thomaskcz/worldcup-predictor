@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { CompetitionPredictionsJson, Team } from "@/types/database";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
 type CompetitionPredictionsFormProps = {
   teams: Team[];
@@ -143,26 +145,33 @@ export function CompetitionPredictionsForm({
 
   if (teams.length === 0) {
     return (
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-base text-zinc-700 dark:text-zinc-300">
-          Aucune équipe disponible pour le moment. Veuillez revenir plus tard une fois les équipes de la compétition chargées.
-        </p>
-      </div>
+      <Card>
+        <div className="text-center">
+          <p className="text-base text-zinc-700 dark:text-zinc-300">
+            Aucune équipe disponible pour le moment. Veuillez revenir plus tard une fois les équipes de la compétition chargées.
+          </p>
+        </div>
+      </Card>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="grid gap-4 lg:grid-cols-2">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-2">
         {groupNames.map((group) => {
           const groupOptions = groupTeams[group] ?? [];
           const selection = predictions.groups[group] ?? { first: "", second: "" };
           const duplicate = selection.first && selection.second && selection.first === selection.second;
 
           return (
-            <div key={group} className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Groupe {group}</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choisissez les deux meilleures équipes de ce groupe.</p>
+            <Card key={group} className={duplicate ? "border-rose-300 dark:border-rose-700" : ""}>
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                <span>🏆</span>
+                Groupe {group}
+              </h3>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Choisissez les deux meilleures équipes de ce groupe.
+              </p>
 
               <div className="mt-4 space-y-4">
                 {(["first", "second"] as const).map((position) => {
@@ -170,13 +179,13 @@ export function CompetitionPredictionsForm({
                   const otherValue = selection[position === "first" ? "second" : "first"];
 
                   return (
-                    <label key={`${group}-${position}`} className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      {position === "first" ? "Vainqueur" : "Deuxième"}
+                    <label key={`${group}-${position}`} className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                      {position === "first" ? "🥇 Vainqueur" : "🥈 Deuxième"}
                       <select
                         value={currentValue}
                         disabled={deadlinePassed}
                         onChange={(event) => handleGroupChange(group, position, event.target.value)}
-                        className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
+                        className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-900 shadow-sm transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
                       >
                         <option value="">Sélectionner une équipe</option>
                         {groupOptions.map((team) => (
@@ -195,30 +204,37 @@ export function CompetitionPredictionsForm({
               </div>
 
               {duplicate && (
-                <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">Le vainqueur et le deuxième ne peuvent pas être la même équipe.</p>
+                <div className="mt-3 rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                  ⚠️ Le vainqueur et le deuxième ne peuvent pas être la même équipe.
+                </div>
               )}
-            </div>
+            </Card>
           );
         })}
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <Card>
         <div>
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Demi-finalistes</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choisissez quatre équipes qui atteindront les demi-finales.</p>
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+            <span>🏅</span>
+            Demi-finalistes
+          </h3>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Choisissez quatre équipes qui atteindront les demi-finales.
+          </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {predictions.semi_finalists.map((value, index) => {
             const duplicate = predictions.semi_finalists.filter(Boolean).filter((teamId) => teamId === value).length > 1;
             return (
-              <label key={`semi-${index}`} className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label key={`semi-${index}`} className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                 Demi-finaliste {index + 1}
                 <select
                   value={value}
                   disabled={deadlinePassed}
                   onChange={(event) => handleSemiFinalChange(index, event.target.value)}
-                  className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
+                  className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-900 shadow-sm transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
                 >
                   <option value="">Sélectionner une équipe</option>
                   {allTeamOptions.map((option) => {
@@ -232,30 +248,39 @@ export function CompetitionPredictionsForm({
                     );
                   })}
                 </select>
-                {duplicate && <span className="mt-1 text-sm text-rose-600 dark:text-rose-400">Les demi-finalistes en double ne sont pas autorisés.</span>}
+                {duplicate && (
+                  <div className="mt-2 rounded-xl bg-rose-50 px-3 py-1.5 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                    Les demi-finalistes en double ne sont pas autorisés.
+                  </div>
+                )}
               </label>
             );
           })}
         </div>
-      </div>
+      </Card>
 
-      <div className="space-y-4 rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <Card>
         <div>
-          <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Finalistes</h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choisissez les deux équipes qui atteindront la finale.</p>
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+            <span>🎖️</span>
+            Finalistes
+          </h3>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Choisissez les deux équipes qui atteindront la finale.
+          </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {predictions.finalists.map((value, index) => {
             const duplicate = predictions.finalists.filter(Boolean).filter((teamId) => teamId === value).length > 1;
             return (
-              <label key={`final-${index}`} className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              <label key={`final-${index}`} className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
                 Finaliste {index + 1}
                 <select
                   value={value}
                   disabled={deadlinePassed}
                   onChange={(event) => handleFinalChange(index, event.target.value)}
-                  className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
+                  className="mt-2 block w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm text-zinc-900 shadow-sm transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:disabled:bg-zinc-800"
                 >
                   <option value="">Sélectionner une équipe</option>
                   {allTeamOptions.map((option) => {
@@ -269,34 +294,45 @@ export function CompetitionPredictionsForm({
                     );
                   })}
                 </select>
-                {duplicate && <span className="mt-1 text-sm text-rose-600 dark:text-rose-400">Les finalistes en double ne sont pas autorisés.</span>}
+                {duplicate && (
+                  <div className="mt-2 rounded-xl bg-rose-50 px-3 py-1.5 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                    Les finalistes en double ne sont pas autorisés.
+                  </div>
+                )}
               </label>
             );
           })}
         </div>
-      </div>
+      </Card>
 
-      <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-        <p>
-          Les prévisions sont modifiables jusqu'au début du premier match programmé.
-          {firstMatchStartTime ? ` Date limite : ${new Date(firstMatchStartTime).toLocaleString()}.` : ""}
-        </p>
-      </div>
+      <Card variant="warning">
+        <div className="flex items-start gap-3">
+          <span className="text-xl">⏰</span>
+          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            Les prévisions sont modifiables jusqu'au début du premier match programmé.
+            {firstMatchStartTime ? ` Date limite : ${new Date(firstMatchStartTime).toLocaleString()}.` : ""}
+          </p>
+        </div>
+      </Card>
 
       {statusMessage && (
-        <div className="rounded-2xl border border-zinc-200 bg-white p-4 text-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
-          {statusMessage}
-        </div>
+        <Card variant={statusMessage.includes("succès") ? "success" : "warning"}>
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+            {statusMessage}
+          </p>
+        </Card>
       )}
 
       <div className="flex items-center justify-between gap-4">
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={deadlinePassed || submitting || hasValidationErrors}
-          className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-sky-300"
+          size="lg"
+          className="flex-1 sm:flex-none"
         >
-          {deadlinePassed ? "Date limite dépassée" : submitting ? "Enregistrement..." : "Enregistrer les prévisions"}
-        </button>
+          {deadlinePassed ? "🔒 Date limite dépassée" : submitting ? "⏳ Enregistrement..." : "💾 Enregistrer les prévisions"}
+        </Button>
       </div>
     </form>
   );

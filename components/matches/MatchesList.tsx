@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { MatchCard } from "@/components/matches/MatchCard";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabaseClient";
 import type { Match, Prediction, UserScore } from "@/types/database";
 
@@ -126,48 +128,62 @@ export function MatchesList() {
 
   if (authLoading) {
     return (
-      <p className="text-zinc-600 dark:text-zinc-400">Chargement de la session...</p>
+      <div className="flex items-center justify-center py-12">
+        <p className="text-zinc-600 dark:text-zinc-400">Chargement de la session...</p>
+      </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-zinc-700 dark:text-zinc-300">
-          Veuillez vous connecter pour pronostiquer les matchs.
-        </p>
-        <Link
-          href="/auth"
-          className="mt-4 inline-flex rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
-          Aller à la connexion
-        </Link>
-      </div>
+      <Card>
+        <div className="text-center">
+          <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-2">
+            Connexion requise
+          </p>
+          <p className="text-zinc-600 dark:text-zinc-400 mb-6">
+            Veuillez vous connecter pour pronostiquer les matchs.
+          </p>
+          <Link href="/auth">
+            <Button variant="primary">
+              Aller à la connexion
+            </Button>
+          </Link>
+        </div>
+      </Card>
     );
   }
 
   if (loading) {
     return (
-      <p className="text-zinc-600 dark:text-zinc-400">Chargement des matchs...</p>
+      <div className="flex items-center justify-center py-12">
+        <p className="text-zinc-600 dark:text-zinc-400">Chargement des matchs...</p>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <p
-        role="alert"
-        className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-      >
-        {error}
-      </p>
+      <Card variant="warning">
+        <div className="text-center">
+          <p
+            role="alert"
+            className="text-rose-700 dark:text-rose-300"
+          >
+            {error}
+          </p>
+        </div>
+      </Card>
     );
   }
 
   if (matches.length === 0) {
     return (
-      <p className="text-zinc-600 dark:text-zinc-400">
-        Aucun match programmé pour le moment.
-      </p>
+      <Card>
+        <p className="text-center text-zinc-600 dark:text-zinc-400">
+          Aucun match programmé pour le moment.
+        </p>
+      </Card>
     );
   }
 
@@ -175,30 +191,33 @@ export function MatchesList() {
     <div className="space-y-6">
       <div className="flex border-b border-zinc-200 dark:border-zinc-800">
         {[
-          { id: "upcoming", label: "À pronostiquer" },
-          { id: "live", label: "En cours / en attente" },
-          { id: "finished", label: "Terminés" },
+          { id: "upcoming", label: "À pronostiquer", emoji: "🎯" },
+          { id: "live", label: "En cours", emoji: "🔴" },
+          { id: "finished", label: "Terminés", emoji: "✅" },
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as Tab)}
-            className={`px-4 py-2 text-sm font-medium ${
+            className={`px-5 py-3 text-sm font-semibold transition-all duration-200 ${
               activeTab === tab.id
                 ? "border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400"
-                : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                : "text-zinc-600 hover:text-zinc-900 hover:border-b-2 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:border-zinc-700"
             }`}
           >
+            <span className="mr-1">{tab.emoji}</span>
             {tab.label}
           </button>
         ))}
       </div>
 
       {filteredMatches.length === 0 ? (
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Aucun match dans cette catégorie.
-        </p>
+        <Card>
+          <p className="text-center text-zinc-600 dark:text-zinc-400">
+            Aucun match dans cette catégorie.
+          </p>
+        </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {filteredMatches.map((match) => (
             <MatchCard
               key={`${match.id}-${predictionsByMatchId[match.id]?.id ?? "new"}`}

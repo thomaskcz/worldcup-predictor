@@ -27,25 +27,25 @@ export default async function LeaderboardPage() {
   });
 
   return (
-    <>
-      <PageContainer
-        title="Classement"
-        description="Le classement est basé sur les scores calculés des pronostics de match."
-      />
-      <div className="mx-auto w-full max-w-5xl flex-1 px-4 pb-10 sm:px-6">
+    <PageContainer
+      title="Classement"
+      description="Le classement est basé sur les scores calculés des pronostics de match."
+      showFootballAccent
+    >
+      <div className="mb-6">
         <RecalculateScoresButton />
-
-        {error ? (
-          <p
-            role="alert"
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
-          >
-            {error.message}
-          </p>
-        ) : (
-          <LeaderboardTable rows={rows} />
-        )}
       </div>
-    </>
+
+      {error ? (
+        <div
+          role="alert"
+          className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4 text-sm text-rose-700 dark:border-rose-800 dark:from-rose-950/30 dark:to-zinc-900 dark:text-rose-300"
+        >
+          {error.message}
+        </div>
+      ) : (
+        <LeaderboardTable rows={rows} />
+      )}
+    </PageContainer>
   );
 }

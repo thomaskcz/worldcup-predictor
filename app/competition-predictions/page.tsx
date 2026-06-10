@@ -52,19 +52,17 @@ export default async function CompetitionPredictionsPage() {
     : false;
 
   return (
-    <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <PageContainer
-        title="Prévisions de la compétition"
-        description="Soumettez vos vainqueurs de groupe, deuxièmes, demi-finalistes et finalistes avant le début du tournoi."
+    <PageContainer
+      title="Prévisions de la compétition"
+      description="Soumettez vos vainqueurs de groupe, deuxièmes, demi-finalistes et finalistes avant le début du tournoi."
+      showFootballAccent
+    >
+      <CompetitionPredictionsForm
+        teams={(teams as Team[]) ?? []}
+        initialPredictions={initialPredictions}
+        deadlinePassed={deadlinePassed}
+        firstMatchStartTime={firstMatchStartTime}
       />
-      <div className="mx-auto w-full max-w-5xl px-4 pb-10 sm:px-6">
-        <CompetitionPredictionsForm
-          teams={(teams as Team[]) ?? []}
-          initialPredictions={initialPredictions}
-          deadlinePassed={deadlinePassed}
-          firstMatchStartTime={firstMatchStartTime}
-        />
-      </div>
-    </main>
+    </PageContainer>
   );
 }
