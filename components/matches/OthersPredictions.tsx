@@ -35,6 +35,8 @@ export function OthersPredictions({
       return;
     }
 
+    console.log("Predictions data:", predictionsData);
+
     if (!predictionsData || predictionsData.length === 0) {
       setLoading(false);
       setPredictions([]);
@@ -44,12 +46,16 @@ export function OthersPredictions({
 
     // Then, fetch user profiles for all users who made predictions
     const userIds = predictionsData.map((p) => p.user_id);
+    console.log("User IDs:", userIds);
+
     const { data: profilesData, error: profilesError } = await supabase
       .from("users_profiles")
       .select("id, nickname, email")
       .in("id", userIds);
 
     setLoading(false);
+
+    console.log("Profiles data:", profilesData);
 
     if (profilesError) {
       setError(profilesError.message);
@@ -60,6 +66,7 @@ export function OthersPredictions({
     const profilesMap = new Map(
       (profilesData || []).map((profile) => [profile.id, profile])
     );
+    console.log("Profiles map:", profilesMap);
 
     // Transform the data to match our type
     const transformedData: UserPredictionWithProfile[] =
@@ -75,6 +82,8 @@ export function OthersPredictions({
         };
       });
 
+    console.log("Transformed data:", transformedData);
+
     // Sort: current user first, then by nickname/email
     const sortedData = transformedData.sort((a, b) => {
       if (a.user_id === currentUserId) return -1;
@@ -84,6 +93,9 @@ export function OthersPredictions({
       const displayNameB = b.nickname || b.email;
       return displayNameA.localeCompare(displayNameB);
     });
+
+    console.log("Sorted data:", sortedData);
+    console.log("Current user ID:", currentUserId);
 
     setPredictions(sortedData);
     setFetched(true);
