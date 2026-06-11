@@ -23,37 +23,57 @@ export function OthersPredictions({
     setLoading(true);
     setError(null);
 
-    const { data, error: fetchError } = await supabase
+    // First, fetch predictions for this match
+    const { data: predictionsData, error: predictionsError } = await supabase
       .from("predictions")
-      .select(`
-        user_id,
-        predicted_home_score,
-        predicted_away_score,
-        predicted_winner,
-        users_profiles!inner (
-          nickname,
-          email
-        )
-      `)
+      .select("user_id, predicted_home_score, predicted_away_score, predicted_winner")
       .eq("match_id", match.id);
 
-    setLoading(false);
-
-    if (fetchError) {
-      setError(fetchError.message);
+    if (predictionsError) {
+      setLoading(false);
+      setError(predictionsError.message);
       return;
     }
 
+    if (!predictionsData || predictionsData.length === 0) {
+      setLoading(false);
+      setPredictions([]);
+      setFetched(true);
+      return;
+    }
+
+    // Then, fetch user profiles for all users who made predictions
+    const userIds = predictionsData.map((p) => p.user_id);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("users_profiles")
+      .select("id, nickname, email")
+      .in("id", userIds);
+
+    setLoading(false);
+
+    if (profilesError) {
+      setError(profilesError.message);
+      return;
+    }
+
+    // Create a map of user profiles for easy lookup
+    const profilesMap = new Map(
+      (profilesData || []).map((profile) => [profile.id, profile])
+    );
+
     // Transform the data to match our type
     const transformedData: UserPredictionWithProfile[] =
-      (data || []).map((item: any) => ({
-        user_id: item.user_id,
-        predicted_home_score: item.predicted_home_score,
-        predicted_away_score: item.predicted_away_score,
-        predicted_winner: item.predicted_winner as "home" | "away" | null,
-        nickname: item.users_profiles.nickname,
-        email: item.users_profiles.email,
-      }));
+      predictionsData.map((item) => {
+        const profile = profilesMap.get(item.user_id);
+        return {
+          user_id: item.user_id,
+          predicted_home_score: item.predicted_home_score,
+          predicted_away_score: item.predicted_away_score,
+          predicted_winner: item.predicted_winner as "home" | "away" | null,
+          nickname: profile?.nickname || null,
+          email: profile?.email || "",
+        };
+      });
 
     // Sort: current user first, then by nickname/email
     const sortedData = transformedData.sort((a, b) => {
