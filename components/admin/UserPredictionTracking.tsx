@@ -54,7 +54,7 @@ export function UserPredictionTracking() {
     if (!hasCompetitionPredictions) {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-          Missing competition predictions
+          Pronostics compétition manquants
         </span>
       );
     }
@@ -62,23 +62,22 @@ export function UserPredictionTracking() {
     if (continuousCount === total) {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-          Up to date
+          À jour
         </span>
       );
     }
 
-    const progressPercentage = (continuousCount / total) * 100;
-    if (progressPercentage >= 80) {
+    if (continuousCount < 4) {
       return (
-        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-          Behind
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+          En retard
         </span>
       );
     }
 
     return (
       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-        Far behind
+        En cours
       </span>
     );
   }
