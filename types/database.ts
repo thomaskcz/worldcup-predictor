@@ -118,3 +118,12 @@ export type LeaderboardDetailedRow = {
   group_stage_points: number;
   knockout_points: number;
 };
+
+export type UserPredictionWithProfile = {
+  user_id: string;
+  predicted_home_score: number;
+  predicted_away_score: number;
+  predicted_winner: KnockoutWinnerPick | null;
+  nickname: string | null;
+  email: string;
+};

@@ -11,6 +11,7 @@ import {
   isPredictionOpen,
 } from "@/lib/matches";
 import { ScoreBreakdown } from "@/components/matches/ScoreBreakdown";
+import { OthersPredictions } from "@/components/matches/OthersPredictions";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type {
@@ -179,6 +180,12 @@ export function MatchCard({
             match={match}
             prediction={prediction}
           />
+        </div>
+      )}
+
+      {status !== "upcoming" && (
+        <div className="mt-4">
+          <OthersPredictions match={match} currentUserId={userId} />
         </div>
       )}
 
