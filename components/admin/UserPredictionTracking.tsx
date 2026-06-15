@@ -7,12 +7,10 @@ interface UserTrackingData {
   user_id: string;
   nickname: string | null;
   email: string;
-  has_competition_predictions: boolean;
   continuous_predictions_count: number;
   last_continuous_home_team: string | null;
   last_continuous_away_team: string | null;
   last_continuous_start_time: string | null;
-  total_predictions: number;
 }
 
 export function UserPredictionTracking() {
@@ -27,10 +25,12 @@ export function UserPredictionTracking() {
   async function fetchData() {
     setLoading(true);
 
-    // Fetch total number of matches for progress calculation
+    // Fetch total number of upcoming matches for progress calculation
     const { data: matchesData, error: matchesError } = await supabase
       .from("matches")
-      .select("id", { count: "exact" });
+      .select("id", { count: "exact" })
+      .eq("finished", false)
+      .gt("start_time", new Date().toISOString());
 
     if (!matchesError && matchesData) {
       setTotalMatches(matchesData.length);
@@ -50,15 +50,7 @@ export function UserPredictionTracking() {
     setLoading(false);
   }
 
-  function getStatusBadge(hasCompetitionPredictions: boolean, continuousCount: number, total: number) {
-    if (!hasCompetitionPredictions) {
-      return (
-        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-          Pronostics compétition manquants
-        </span>
-      );
-    }
-
+  function getStatusBadge(continuousCount: number, total: number) {
     if (continuousCount === total) {
       return (
         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
@@ -125,16 +117,10 @@ export function UserPredictionTracking() {
                   Utilisateur
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Prédictions de compétition
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   Progression matchs
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   Dernier match continu
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Total prédictions
                 </th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   Statut
@@ -152,17 +138,6 @@ export function UserPredictionTracking() {
                       <div className="text-xs text-zinc-500 dark:text-zinc-400">
                         {user.email}
                       </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {user.has_competition_predictions ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
-                        Complété
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                        Non complété
-                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm">
@@ -197,12 +172,8 @@ export function UserPredictionTracking() {
                       <span className="text-zinc-500 dark:text-zinc-400">-</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium">
-                    {user.total_predictions}
-                  </td>
                   <td className="px-4 py-3 text-sm">
                     {getStatusBadge(
-                      user.has_competition_predictions,
                       user.continuous_predictions_count,
                       totalMatches
                     )}
