@@ -35,6 +35,17 @@ export function MatchesList() {
       return !isFinished && hasStarted;
     }
     return isFinished;
+  }).sort((a, b) => {
+    const dateA = new Date(a.start_time).getTime();
+    const dateB = new Date(b.start_time).getTime();
+
+    // Pour les matchs terminés : plus récent -> plus ancien
+    if (activeTab === "finished") {
+      return dateB - dateA;
+    }
+
+    // Pour les autres onglets : plus ancien -> plus récent
+    return dateA - dateB;
   });
 
   useEffect(() => {
