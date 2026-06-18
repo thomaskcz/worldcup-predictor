@@ -126,4 +126,5 @@ export type UserPredictionWithProfile = {
   predicted_winner: KnockoutWinnerPick | null;
   nickname: string | null;
   email: string;
+  score: number | null;
 };
