@@ -37,16 +37,17 @@ export function MatchCard({
   onPredictionSaved,
 }: MatchCardProps) {
   const [homeScore, setHomeScore] = useState(() =>
-    prediction ? String(prediction.predicted_home_score) : "0"
+    prediction ? String(prediction.predicted_home_score) : ""
   );
   const [awayScore, setAwayScore] = useState(() =>
-    prediction ? String(prediction.predicted_away_score) : "0"
+    prediction ? String(prediction.predicted_away_score) : ""
   );
   const [predictedWinner, setPredictedWinner] = useState<
     KnockoutWinnerPick | ""
   >(() => prediction?.predicted_winner ?? "");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; variant: "success" | "error" } | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
@@ -57,8 +58,19 @@ export function MatchCard({
   const isDrawPrediction =
     isKnockout && Number(homeScore) === Number(awayScore);
 
+  const originalHomeScore = prediction?.predicted_home_score;
+  const originalAwayScore = prediction?.predicted_away_score;
+  const originalWinner = prediction?.predicted_winner;
+
+  const hasValuesChanged =
+    Number(homeScore) !== (originalHomeScore ?? 0) ||
+    Number(awayScore) !== (originalAwayScore ?? 0) ||
+    predictedWinner !== (originalWinner ?? "");
+
   const savePrediction = useCallback(async () => {
     if (isSavingRef.current) return;
+    if (!isDirty) return;
+    if (!hasValuesChanged) return;
 
     const parsedHome = Number(homeScore);
     const parsedAway = Number(awayScore);
@@ -95,6 +107,7 @@ export function MatchCard({
 
     setSaving(false);
     isSavingRef.current = false;
+    setIsDirty(false);
 
     if (upsertError) {
       setToast({ message: "Erreur lors de l'enregistrement", variant: "error" });
@@ -106,10 +119,11 @@ export function MatchCard({
       const message = prediction ? "Pronostic mis à jour" : "Pronostic enregistré";
       setToast({ message, variant: "success" });
     }
-  }, [homeScore, awayScore, predictedWinner, isDrawPrediction, userId, match.id, prediction, onPredictionSaved]);
+  }, [isDirty, hasValuesChanged, homeScore, awayScore, predictedWinner, isDrawPrediction, userId, match.id, prediction, onPredictionSaved]);
 
   useEffect(() => {
     if (!canPredict) return;
+    if (!isDirty) return;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -124,7 +138,33 @@ export function MatchCard({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [homeScore, awayScore, predictedWinner, canPredict, savePrediction]);
+  }, [isDirty, canPredict, savePrediction]);
+
+  const handleHomeScoreChange = (value: string) => {
+    setHomeScore(value);
+    setIsDirty(true);
+  };
+
+  const handleAwayScoreChange = (value: string) => {
+    setAwayScore(value);
+    setIsDirty(true);
+  };
+
+  const handleWinnerChange = (winner: KnockoutWinnerPick) => {
+    setPredictedWinner(winner);
+    setIsDirty(true);
+  };
+
+  // Sync local state when prediction prop changes (e.g., after save)
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (prediction) {
+      setHomeScore(String(prediction.predicted_home_score));
+      setAwayScore(String(prediction.predicted_away_score));
+      setPredictedWinner(prediction.predicted_winner ?? "");
+    }
+  }, [prediction]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const cardVariant = prediction ? "success" : "default";
 
@@ -215,7 +255,7 @@ export function MatchCard({
               type="number"
               min={0}
               value={homeScore}
-              onChange={(event) => setHomeScore(event.target.value)}
+              onChange={(event) => handleHomeScoreChange(event.target.value)}
               disabled={!canPredict}
               className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900"
             />
@@ -227,7 +267,7 @@ export function MatchCard({
               type="number"
               min={0}
               value={awayScore}
-              onChange={(event) => setAwayScore(event.target.value)}
+              onChange={(event) => handleAwayScoreChange(event.target.value)}
               disabled={!canPredict}
               className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900"
             />
@@ -254,7 +294,7 @@ export function MatchCard({
                   name={`winner-${match.id}`}
                   value="home"
                   checked={predictedWinner === "home"}
-                  onChange={() => setPredictedWinner("home")}
+                  onChange={() => handleWinnerChange("home")}
                   className="w-4 h-4 text-amber-600 focus:ring-amber-500"
                 />
                 <span className="font-semibold">{match.home_team}</span>
@@ -265,7 +305,7 @@ export function MatchCard({
                   name={`winner-${match.id}`}
                   value="away"
                   checked={predictedWinner === "away"}
-                  onChange={() => setPredictedWinner("away")}
+                  onChange={() => handleWinnerChange("away")}
                   className="w-4 h-4 text-amber-600 focus:ring-amber-500"
                 />
                 <span className="font-semibold">{match.away_team}</span>
