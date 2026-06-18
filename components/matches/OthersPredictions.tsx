@@ -44,23 +44,10 @@ export function OthersPredictions({
     setLoading(true);
     setError(null);
 
-    // Fetch predictions with user profiles and scores in a single query using a join
+    // Fetch predictions for this match
     const { data: predictionsData, error: predictionsError } = await supabase
       .from("predictions")
-      .select(`
-        user_id,
-        predicted_home_score,
-        predicted_away_score,
-        predicted_winner,
-        users_profiles!inner (
-          id,
-          nickname,
-          email
-        ),
-        user_scores (
-          score
-        )
-      `)
+      .select("user_id, predicted_home_score, predicted_away_score, predicted_winner")
       .eq("match_id", match.id);
 
     if (predictionsError) {
@@ -76,11 +63,43 @@ export function OthersPredictions({
       return;
     }
 
+    // Fetch user profiles for all users who made predictions
+    const userIds = predictionsData.map((p) => p.user_id);
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from("users_profiles")
+      .select("id, nickname, email")
+      .in("id", userIds);
+
+    if (profilesError) {
+      setLoading(false);
+      setError(profilesError.message);
+      return;
+    }
+
+    // Fetch user scores for this match (only for finished matches)
+    let scoresMap: Map<string, number> = new Map();
+    if (match.finished) {
+      const { data: scoresData, error: scoresError } = await supabase
+        .from("user_scores")
+        .select("user_id, score")
+        .eq("match_id", match.id)
+        .in("user_id", userIds);
+
+      if (!scoresError && scoresData) {
+        scoresMap = new Map(scoresData.map((s) => [s.user_id, s.score]));
+      }
+    }
+
+    // Create a map of user profiles for easy lookup
+    const profilesMap = new Map(
+      (profilesData || []).map((profile) => [profile.id, profile])
+    );
+
     // Transform the data to match our type
     const transformedData: UserPredictionWithProfile[] =
-      predictionsData.map((item: any) => {
-        const profile = item.users_profiles;
-        const score = item.user_scores && item.user_scores.length > 0 ? item.user_scores[0].score : null;
+      predictionsData.map((item) => {
+        const profile = profilesMap.get(item.user_id);
         return {
           user_id: item.user_id,
           predicted_home_score: item.predicted_home_score,
@@ -88,7 +107,7 @@ export function OthersPredictions({
           predicted_winner: item.predicted_winner as "home" | "away" | null,
           nickname: profile?.nickname || null,
           email: profile?.email || "",
-          score,
+          score: scoresMap.get(item.user_id) ?? null,
         };
       });
 
