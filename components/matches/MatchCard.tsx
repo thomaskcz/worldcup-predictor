@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   formatMatchDateTime,
@@ -13,7 +13,7 @@ import {
 import { ScoreBreakdown } from "@/components/matches/ScoreBreakdown";
 import { OthersPredictions } from "@/components/matches/OthersPredictions";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Toast } from "@/components/ui/Toast";
 import type {
   KnockoutWinnerPick,
   Match,
@@ -45,9 +45,11 @@ export function MatchCard({
   const [predictedWinner, setPredictedWinner] = useState<
     KnockoutWinnerPick | ""
   >(() => prediction?.predicted_winner ?? "");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; variant: "success" | "error" } | null>(null);
+
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = useRef(false);
 
   const status = getMatchStatus(match);
   const canPredict = isPredictionOpen(match);
@@ -55,10 +57,8 @@ export function MatchCard({
   const isDrawPrediction =
     isKnockout && Number(homeScore) === Number(awayScore);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setSuccess(false);
+  const savePrediction = useCallback(async () => {
+    if (isSavingRef.current) return;
 
     const parsedHome = Number(homeScore);
     const parsedAway = Number(awayScore);
@@ -69,16 +69,15 @@ export function MatchCard({
       parsedHome < 0 ||
       parsedAway < 0
     ) {
-      setError("Les scores doivent être des nombres non négatifs.");
       return;
     }
 
     if (isDrawPrediction && !predictedWinner) {
-      setError("Sélectionnez un vainqueur pour les pronostics d'égalité en phase à élimination directe.");
       return;
     }
 
-    setSubmitting(true);
+    isSavingRef.current = true;
+    setSaving(true);
 
     const payload = {
       user_id: userId,
@@ -94,19 +93,38 @@ export function MatchCard({
       .select()
       .single();
 
-    setSubmitting(false);
+    setSaving(false);
+    isSavingRef.current = false;
 
     if (upsertError) {
-      setError(upsertError.message);
+      setToast({ message: "Erreur lors de l'enregistrement", variant: "error" });
       return;
     }
 
     if (data) {
       onPredictionSaved(data as Prediction);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      const message = prediction ? "Pronostic mis à jour" : "Pronostic enregistré";
+      setToast({ message, variant: "success" });
     }
-  }
+  }, [homeScore, awayScore, predictedWinner, isDrawPrediction, userId, match.id, prediction, onPredictionSaved]);
+
+  useEffect(() => {
+    if (!canPredict) return;
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      savePrediction();
+    }, 1500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [homeScore, awayScore, predictedWinner, canPredict, savePrediction]);
 
   const cardVariant = prediction ? "success" : "default";
 
@@ -189,7 +207,7 @@ export function MatchCard({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+      <div className="mt-5 space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300">
             {match.home_team}
@@ -198,7 +216,7 @@ export function MatchCard({
               min={0}
               value={homeScore}
               onChange={(event) => setHomeScore(event.target.value)}
-              disabled={!canPredict || submitting}
+              disabled={!canPredict}
               className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900"
             />
           </label>
@@ -210,17 +228,24 @@ export function MatchCard({
               min={0}
               value={awayScore}
               onChange={(event) => setAwayScore(event.target.value)}
-              disabled={!canPredict || submitting}
+              disabled={!canPredict}
               className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-zinc-900 transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900"
             />
           </label>
         </div>
 
+        {saving && canPredict && (
+          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <div className="w-4 h-4 border-2 border-zinc-300 border-t-emerald-600 rounded-full animate-spin dark:border-zinc-600 dark:border-t-emerald-500"></div>
+            Enregistrement...
+          </div>
+        )}
+
         {isDrawPrediction && canPredict && (
           <fieldset className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 dark:border-amber-800 dark:from-amber-950/30 dark:to-zinc-900">
             <legend className="text-sm font-bold text-amber-900 dark:text-amber-100 mb-3 flex items-center gap-2">
               <span>⚠️</span>
-              Score égal - Vainqueur en cas d'égalité
+              Score égal - Vainqueur en cas d&apos;égalité
             </legend>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 cursor-pointer hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
@@ -230,7 +255,6 @@ export function MatchCard({
                   value="home"
                   checked={predictedWinner === "home"}
                   onChange={() => setPredictedWinner("home")}
-                  disabled={submitting}
                   className="w-4 h-4 text-amber-600 focus:ring-amber-500"
                 />
                 <span className="font-semibold">{match.home_team}</span>
@@ -242,14 +266,13 @@ export function MatchCard({
                   value="away"
                   checked={predictedWinner === "away"}
                   onChange={() => setPredictedWinner("away")}
-                  disabled={submitting}
                   className="w-4 h-4 text-amber-600 focus:ring-amber-500"
                 />
                 <span className="font-semibold">{match.away_team}</span>
               </label>
             </div>
             <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
-              En phase à élimination directe, vous devez sélectionner l'équipe qui se qualifie en cas d'égalité.
+              En phase à élimination directe, vous devez sélectionner l&apos;équipe qui se qualifie en cas d&apos;égalité.
             </p>
           </fieldset>
         )}
@@ -259,37 +282,15 @@ export function MatchCard({
             🔒 Les pronostics sont clos pour ce match.
           </div>
         )}
+      </div>
 
-        {error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white px-4 py-3 text-sm text-rose-700 dark:border-rose-800 dark:from-rose-950/30 dark:to-zinc-900 dark:text-rose-300"
-          >
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:from-emerald-950/30 dark:to-zinc-900 dark:text-emerald-300">
-            ✓ Pronostic enregistré avec succès.
-          </div>
-        )}
-
-        {canPredict && (
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={submitting}
-            className="w-full sm:w-auto"
-          >
-            {submitting
-              ? "Enregistrement..."
-              : prediction
-                ? "Mettre à jour le pronostic"
-                : "Enregistrer le pronostic"}
-          </Button>
-        )}
-      </form>
+      {toast && (
+        <Toast
+          message={toast.message}
+          variant={toast.variant}
+          onClose={() => setToast(null)}
+        />
+      )}
     </Card>
   );
 }

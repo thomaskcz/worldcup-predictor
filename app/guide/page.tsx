@@ -72,7 +72,7 @@ export default function GuidePage() {
           <Card>
             <div className="space-y-6">
               <p className="text-base text-zinc-700 dark:text-zinc-300">
-                Pour chaque match de la Coupe du Monde, vous pouvez prédire le score exact avant le coup d'envoi.
+                Pour chaque match de la Coupe du Monde, vous pouvez prédire le score exact avant le coup d&apos;envoi.
               </p>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 dark:bg-emerald-950/30 dark:border-emerald-800">
@@ -90,7 +90,7 @@ export default function GuidePage() {
                   <div className="flex items-center gap-2">
                     <span className="text-amber-600 dark:text-amber-400 text-lg">🔒</span>
                     <span className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                      Après le coup d'envoi
+                      Après le coup d&apos;envoi
                     </span>
                   </div>
                   <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
@@ -106,15 +106,15 @@ export default function GuidePage() {
                   France 2 - 1 Brésil
                 </p>
               </div>
-              <Card variant="warning">
+              <Card variant="success">
                 <div className="flex items-start gap-3">
-                  <span className="text-rose-600 dark:text-rose-400 text-xl">⚠️</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 text-xl">✓</span>
                   <div>
-                    <h4 className="text-sm font-bold text-rose-900 dark:text-rose-100">
-                      Important : N'oubliez pas d'enregistrer !
+                    <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+                      Enregistrement automatique
                     </h4>
-                    <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">
-                      Après avoir sélectionné votre score, vous devez cliquer sur le bouton "Enregistrer" pour valider votre pronostic. Un pronostic non enregistré ne sera pas pris en compte.
+                    <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+                      Les pronostics sont enregistrés automatiquement quelques instants après chaque modification. Un message de confirmation apparaît lorsque l&apos;enregistrement est effectué.
                     </p>
                   </div>
                 </div>
