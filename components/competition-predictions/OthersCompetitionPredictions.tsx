@@ -65,9 +65,28 @@ export function OthersCompetitionPredictions({ teams, currentUserId }: OthersCom
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fetched, setFetched] = useState(false);
 
   const teamsMap = new Map(teams.map((team) => [team.id, team]));
+
+  // Load visibility settings immediately when component mounts
+  useEffect(() => {
+    const fetchVisibilitySettings = async () => {
+      try {
+        const response = await fetch("/api/admin/competition-visibility");
+        if (response.ok) {
+          const settings = await response.json();
+          setData((prev) => ({
+            visibility: settings,
+            predictions: prev?.predictions || [],
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching visibility settings:", err);
+      }
+    };
+
+    fetchVisibilitySettings();
+  }, []);
 
   const fetchPredictions = useCallback(async () => {
     setLoading(true);
@@ -110,7 +129,6 @@ export function OthersCompetitionPredictions({ teams, currentUserId }: OthersCom
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
-      setFetched(true);
     }
   }, [currentUserId]);
 
@@ -118,7 +136,8 @@ export function OthersCompetitionPredictions({ teams, currentUserId }: OthersCom
     const newExpanded = !expanded;
     setExpanded(newExpanded);
 
-    if (newExpanded && !fetched) {
+    // Always fetch predictions when expanding to get fresh data
+    if (newExpanded) {
       fetchPredictions();
     }
   };
@@ -136,17 +155,40 @@ export function OthersCompetitionPredictions({ teams, currentUserId }: OthersCom
     return team ? team.name : teamId;
   };
 
-  if (!data || !data.visibility) {
-    return null;
-  }
-
-  const { visibility, predictions } = data;
+  const visibility = data?.visibility;
+  const predictions = data?.predictions || [];
 
   // Check if any visibility is enabled
   const anyVisibilityEnabled =
-    visibility.show_group_predictions ||
-    visibility.show_semi_predictions ||
-    visibility.show_final_predictions;
+    visibility?.show_group_predictions ||
+    visibility?.show_semi_predictions ||
+    visibility?.show_final_predictions;
+
+  // If we don't have visibility data yet, still show the button
+  if (!visibility) {
+    return (
+      <div className="mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+        <button
+          onClick={handleToggle}
+          className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 font-medium"
+        >
+          {expanded ? "▶ Masquer les pronostics" : "▶ Pronostics des autres joueurs"}
+        </button>
+
+        {expanded && (
+          <div className="mt-3">
+            <Card>
+              <div className="text-center py-4">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Chargement des paramètres de visibilité...
+                </p>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (!anyVisibilityEnabled) {
     return (
