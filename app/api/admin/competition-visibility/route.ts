@@ -65,6 +65,19 @@ export async function PUT(request: Request) {
   // Use service role client to bypass RLS for admin operations
   const adminClient = createSupabaseAdminClient();
 
+  // First, get the ID of the existing settings row
+  const { data: existingSettings, error: fetchError } = await adminClient
+    .from("competition_visibility_settings")
+    .select("id")
+    .limit(1)
+    .single();
+
+  if (fetchError) {
+    console.error("Error fetching existing visibility settings:", fetchError);
+    return NextResponse.json({ error: "Failed to fetch existing settings" }, { status: 500 });
+  }
+
+  // Update the specific row
   const { data: settings, error: updateError } = await adminClient
     .from("competition_visibility_settings")
     .update({
@@ -73,6 +86,7 @@ export async function PUT(request: Request) {
       show_final_predictions,
       updated_at: new Date().toISOString(),
     })
+    .eq("id", existingSettings.id)
     .select("id, show_group_predictions, show_semi_predictions, show_final_predictions")
     .single();
 
