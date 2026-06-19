@@ -21,6 +21,8 @@ export default async function LeaderboardPage() {
   const rows = ((data ?? []) as LeaderboardDetailedRow[]).sort((left, right) => {
     if (right.total_points !== left.total_points) {
       return right.total_points - left.total_points;
+    } else if (right.exact_score_count !== left.exact_score_count) {
+      return right.exact_score_count - left.exact_score_count;
     }
 
     return left.email.localeCompare(right.email);
