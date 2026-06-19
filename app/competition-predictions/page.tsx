@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageContainer } from "@/components/PageContainer";
 import { CompetitionPredictionsForm } from "@/components/competition-predictions/CompetitionPredictionsForm";
+import { OthersCompetitionPredictions } from "@/components/competition-predictions/OthersCompetitionPredictions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { CompetitionPredictionsJson, Team } from "@/types/database";
 
@@ -63,6 +64,7 @@ export default async function CompetitionPredictionsPage() {
         deadlinePassed={deadlinePassed}
         firstMatchStartTime={firstMatchStartTime}
       />
+      <OthersCompetitionPredictions teams={(teams as Team[]) ?? []} currentUserId={user.id} />
     </PageContainer>
   );
 }

@@ -6,11 +6,12 @@ import { PageContainer } from "@/components/PageContainer";
 import { MatchManagement } from "@/components/admin/MatchManagement";
 import { LiveMatches } from "@/components/admin/LiveMatches";
 import { UserPredictionTracking } from "@/components/admin/UserPredictionTracking";
+import { CompetitionVisibility } from "@/components/admin/CompetitionVisibility";
 import {useAuth} from "@/components/AuthProvider";
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<"live" | "management" | "tracking">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "management" | "tracking" | "visibility">("live");
 
   if (loading || !user || !user.is_admin) {
     return (
@@ -53,11 +54,22 @@ export default function AdminPage() {
             >
               📊 Suivi des prédictions
             </button>
+            <button
+              onClick={() => setActiveTab("visibility")}
+              className={`px-5 py-3 text-sm font-semibold transition-all duration-200 ${
+                activeTab === "visibility"
+                  ? "border-b-2 border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                  : "text-zinc-600 hover:text-zinc-900 hover:border-b-2 hover:border-zinc-300 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:border-zinc-700"
+              }`}
+            >
+              👁️ Visibilité des prévisions
+            </button>
           </div>
           <div>
             {activeTab === "live" && <LiveMatches />}
             {activeTab === "management" && <MatchManagement />}
             {activeTab === "tracking" && <UserPredictionTracking />}
+            {activeTab === "visibility" && <CompetitionVisibility />}
           </div>
         </div>
       </PageContainer>
