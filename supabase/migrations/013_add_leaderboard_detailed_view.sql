@@ -30,7 +30,10 @@ SELECT
     COALESCE(ms.correct_predictions_count, 0) AS correct_predictions_count,
     COALESCE(ms.exact_score_count, 0) AS exact_score_count,
     COALESCE(cl.group_points, 0) AS group_stage_points,
-    COALESCE(cl.knockout_points, 0) AS knockout_points
+    COALESCE(cl.knockout_points, 0) AS knockout_points,
+    cl.previous_rank,
+    cl.current_rank,
+    cl.rank_delta
 FROM
     public.users_profiles u
 LEFT JOIN
@@ -40,4 +43,4 @@ LEFT JOIN
 LEFT JOIN
     match_stats ms ON u.id = ms.user_id
 GROUP BY
-    u.id, u.email, u.nickname, cl.total_points, cl.group_points, cl.knockout_points, ms.correct_predictions_count, ms.exact_score_count;
+    u.id, u.email, u.nickname, cl.total_points, cl.group_points, cl.knockout_points, ms.correct_predictions_count, ms.exact_score_count, cl.previous_rank, cl.current_rank, cl.rank_delta;

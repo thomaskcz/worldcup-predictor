@@ -1,5 +1,6 @@
 import { getDisplayName } from "@/lib/displayName";
 import type { LeaderboardDetailedRow } from "@/types/database";
+import { RankEvolutionBadge } from "./RankEvolutionBadge";
 
 type LeaderboardTableProps = {
   rows: LeaderboardDetailedRow[];
@@ -86,6 +87,7 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
                     <span className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
                       #{rank}
                     </span>
+                    <RankEvolutionBadge rankDelta={row.rank_delta} />
                   </div>
                 </td>
                 <td className="px-5 py-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100">

@@ -96,6 +96,9 @@ export type CompetitionLeaderboardRow = {
   group_points: number;
   knockout_points: number;
   breakdown_json: Record<string, unknown> | null;
+  previous_rank: number | null;
+  current_rank: number | null;
+  rank_delta: number | null;
   updated_at: string;
 };
 
@@ -117,6 +120,9 @@ export type LeaderboardDetailedRow = {
   exact_score_count: number;
   group_stage_points: number;
   knockout_points: number;
+  previous_rank: number | null;
+  current_rank: number | null;
+  rank_delta: number | null;
 };
 
 export type UserPredictionWithProfile = {

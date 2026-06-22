@@ -22,7 +22,10 @@ export async function POST() {
     const matchResult = await recalculateScores(adminClient);
 
     // Recalculate competition-based scores (groups, semis, finals)
-    const competitionResult = await recalculateCompetitionScores(adminClient);
+    const competitionResult = await recalculateCompetitionScores(
+      adminClient,
+      matchResult.processedMatches,
+    );
 
     // Return backward-compatible response that includes all results
     return NextResponse.json({
