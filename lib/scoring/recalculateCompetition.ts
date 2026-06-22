@@ -122,35 +122,37 @@ export async function recalculateCompetitionScores(
       });
     }
 
-    // Only update ranks if at least one match was processed
-    if (processedMatches > 0) {
-      // Sort by total_points DESC, then by user_id ASC for deterministic ranking
-      leaderboardRows.sort((a, b) => {
-        if (b.total_points !== a.total_points) {
-          return b.total_points - a.total_points;
-        }
-        return a.user_id.localeCompare(b.user_id);
-      });
+    // Always sort by total_points DESC, then by user_id ASC for deterministic ranking
+    leaderboardRows.sort((a, b) => {
+      if (b.total_points !== a.total_points) {
+        return b.total_points - a.total_points;
+      }
+      return a.user_id.localeCompare(b.user_id);
+    });
 
-      // Assign ranks and compute deltas
-      leaderboardRows.forEach((row, index) => {
-        const currentRank = index + 1;
-        const previousRank = oldRankMap.get(row.user_id) ?? null;
-        const rankDelta = previousRank !== null ? previousRank - currentRank : null;
+    // Assign ranks and compute deltas
+    leaderboardRows.forEach((row, index) => {
+      const currentRank = index + 1;
+      const previousRank = oldRankMap.get(row.user_id) ?? null;
+      const rankDelta = previousRank !== null ? previousRank - currentRank : null;
 
-        row.previous_rank = previousRank;
-        row.current_rank = currentRank;
-        row.rank_delta = rankDelta;
-      });
-    } else {
-      // No matches processed, keep existing ranks
-      leaderboardRows.forEach((row) => {
-        const existingRank = oldRankMap.get(row.user_id) ?? null;
-        row.previous_rank = existingRank;
-        row.current_rank = existingRank;
-        row.rank_delta = null;
-      });
-    }
+      row.previous_rank = previousRank;
+      row.current_rank = currentRank;
+      row.rank_delta = rankDelta;
+    });
+
+    // Debug logging
+    console.log("[RankComputation] Leaderboard sorted and ranked:", {
+      totalUsers: leaderboardRows.length,
+      processedMatches,
+      first5Users: leaderboardRows.slice(0, 5).map((r) => ({
+        user_id: r.user_id,
+        current_rank: r.current_rank,
+        previous_rank: r.previous_rank,
+        rank_delta: r.rank_delta,
+        total_points: r.total_points,
+      })),
+    });
 
     // Add updated_at timestamp to all rows
     leaderboardRows.forEach((row) => {
@@ -158,18 +160,25 @@ export async function recalculateCompetitionScores(
     });
 
     // Upsert into competition_leaderboard table
-    const { error: upsertError } = await supabase.from("competition_leaderboard").upsert(leaderboardRows, {
+    const { error: upsertError, count } = await supabase.from("competition_leaderboard").upsert(leaderboardRows, {
       onConflict: "user_id",
+      count: "exact",
     });
 
     if (upsertError) {
       throw new Error(`Failed to upsert leaderboard: ${upsertError.message}`);
     }
 
+    // Debug logging for DB update
+    console.log("[RankComputation] Database upsert result:", {
+      rowsAffected: count,
+      totalRowsAttempted: leaderboardRows.length,
+    });
+
     return {
       usersProcessed: predictions.length,
       scoresUpdated: leaderboardRows.length,
-      ranksUpdated: processedMatches > 0 ? leaderboardRows.length : 0,
+      ranksUpdated: leaderboardRows.length,
       processedMatches,
     };
   } catch (error) {

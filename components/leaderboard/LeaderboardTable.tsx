@@ -48,6 +48,9 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
             <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               Rang
             </th>
+            <th className="hidden px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 md:table-cell">
+              Évolution
+            </th>
             <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               Utilisateur
             </th>
@@ -87,8 +90,13 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
                     <span className="text-sm font-bold text-zinc-900 dark:text-zinc-50">
                       #{rank}
                     </span>
-                    <RankEvolutionBadge rankDelta={row.rank_delta} />
                   </div>
+                </td>
+                <td className="hidden px-5 py-4 md:table-cell">
+                  <RankEvolutionBadge
+                    previousRank={row.previous_rank}
+                    currentRank={row.current_rank}
+                  />
                 </td>
                 <td className="px-5 py-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                   {getDisplayName(row)}
