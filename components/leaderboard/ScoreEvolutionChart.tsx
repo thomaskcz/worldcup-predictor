@@ -75,20 +75,20 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      // Only show the first (hovered) entry
+      const entry = payload[0];
+
       return (
         <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
           <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {label}
           </p>
-          {payload.map((entry: any, index: number) => (
-            <p
-              key={index}
-              className="text-sm text-zinc-700 dark:text-zinc-300"
-              style={{ color: entry.color }}
-            >
-              {entry.name}: {entry.value}
-            </p>
-          ))}
+          <p
+            className="text-sm text-zinc-700 dark:text-zinc-300"
+            style={{ color: entry.color }}
+          >
+            {entry.name}: {entry.value}
+          </p>
         </div>
       );
     }
@@ -96,7 +96,10 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   };
 
   return (
-    <div className="w-full">
+    <div
+      className="w-full"
+      onMouseLeave={() => setHoveredLine(null)}
+    >
       <ResponsiveContainer width="100%" height={500}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -121,7 +124,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
                 stroke={colors[index % colors.length]}
                 strokeWidth={isHovered ? 3 : 2}
                 dot={false}
-                activeDot={false}
+                activeDot={{ r: 0, fill: "transparent" }}
                 opacity={isDimmed ? 0.2 : 1}
                 onMouseEnter={() => setHoveredLine(user.nickname)}
                 onMouseLeave={() => setHoveredLine(null)}
