@@ -142,4 +142,7 @@ export type RankEvolutionRow = {
   user_id: string;
   start_time: string;
   rank: number;
+  match_id: string;
+  home_team: string;
+  away_team: string;
 };

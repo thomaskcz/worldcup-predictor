@@ -6,14 +6,17 @@ RETURNS TABLE (
   email text,
   user_id uuid,
   start_time timestamp with time zone,
-  rank integer
+  rank integer,
+  match_id uuid,
+  home_team text,
+  away_team text
 )
 LANGUAGE sql
 SECURITY INVOKER
 SET search_path = public
 AS $$
 WITH ordered_matches AS (
-  SELECT id, start_time
+  SELECT id, start_time, home_team, away_team
   FROM matches
   WHERE finished = true
   ORDER BY start_time ASC
@@ -24,7 +27,9 @@ scores AS (
     us.user_id,
     us.match_id,
     m.start_time,
-    us.score
+    us.score,
+    m.home_team,
+    m.away_team
   FROM user_scores us
   JOIN matches m ON m.id = us.match_id
   WHERE m.finished = true
@@ -34,6 +39,9 @@ cumulative AS (
   SELECT
     user_id,
     start_time,
+    home_team,
+    away_team,
+    match_id,
     SUM(score) OVER (
       PARTITION BY user_id
       ORDER BY start_time
@@ -46,6 +54,9 @@ ranked AS (
     c.user_id,
     c.start_time,
     c.cumulative_score,
+    c.home_team,
+    c.away_team,
+    c.match_id,
     RANK() OVER (
       PARTITION BY c.start_time
       ORDER BY c.cumulative_score DESC
@@ -58,7 +69,10 @@ SELECT
   up.email,
   r.user_id,
   r.start_time,
-  r.rank
+  r.rank,
+  r.match_id,
+  r.home_team,
+  r.away_team
 FROM ranked r
 JOIN users_profiles up ON up.id = r.user_id
 ORDER BY r.start_time ASC;

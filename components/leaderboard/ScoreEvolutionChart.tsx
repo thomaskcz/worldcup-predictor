@@ -22,7 +22,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   const [endMatchIndex, setEndMatchIndex] = useState<number>(-1); // -1 means last match
 
   // Memoize data transformation
-  const { allTimestamps, fullChartData, users, colors } = useMemo(() => {
+  const { allTimestamps, fullChartData, users, colors, matchOptions } = useMemo(() => {
     // Group by user and create series
     const userMap = new Map<string, RankEvolutionRow[]>();
 
@@ -34,10 +34,25 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
       userMap.get(key)!.push(row);
     });
 
-    // Get all unique timestamps sorted
-    const allTimestamps = Array.from(
-      new Set(data.map((d) => d.start_time)),
-    ).sort();
+    // Get all unique timestamps sorted with match info
+    const timestampMap = new Map<string, { home_team: string; away_team: string }>();
+    data.forEach((row) => {
+      if (!timestampMap.has(row.start_time)) {
+        timestampMap.set(row.start_time, {
+          home_team: row.home_team,
+          away_team: row.away_team,
+        });
+      }
+    });
+
+    const allTimestamps = Array.from(timestampMap.keys()).sort();
+
+    // Build match options for dropdowns
+    const matchOptions = allTimestamps.map((timestamp, index) => ({
+      index,
+      timestamp,
+      label: `${timestampMap.get(timestamp)!.home_team} vs ${timestampMap.get(timestamp)!.away_team}`,
+    }));
 
     // Build chart data array with each timestamp as a point
     const fullChartData = allTimestamps.map((timestamp) => {
@@ -77,7 +92,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
       nickname: rows[0]?.nickname || rows[0]?.email.split("@")[0] || "Unknown",
     }));
 
-    return { allTimestamps, fullChartData, users, colors };
+    return { allTimestamps, fullChartData, users, colors, matchOptions };
   }, [data]);
 
   // Filter data based on match range
@@ -112,15 +127,6 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
       </text>
     );
   };
-
-  // Get available match options
-  const matchOptions = allTimestamps.map((timestamp, index) => ({
-    index,
-    label: new Date(timestamp).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-    }),
-  }));
 
   return (
     <div className="relative w-full">
