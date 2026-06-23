@@ -8,6 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  Brush,
 } from "recharts";
 import type { ScoreEvolutionRow } from "@/types/database";
 
@@ -112,7 +113,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
         </div>
       )}
 
-      <ResponsiveContainer width="100%" height={500}>
+      <ResponsiveContainer width="100%" height={550}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis
@@ -123,6 +124,14 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
             height={80}
           />
           <YAxis tick={{ fontSize: 12 }} />
+          <Brush
+            dataKey="timestamp"
+            height={30}
+            stroke="#8884d8"
+            fill="#8884d8"
+            fillOpacity={0.1}
+            travellerWidth={10}
+          />
           {users.map((user, index) => {
             const isHovered = hoveredLine === user.nickname;
             const isDimmed = hoveredLine && !isHovered;
