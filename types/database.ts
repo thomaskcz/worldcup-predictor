@@ -136,10 +136,10 @@ export type UserPredictionWithProfile = {
   score: number | null;
 };
 
-export type ScoreEvolutionRow = {
+export type RankEvolutionRow = {
   nickname: string | null;
   email: string;
   user_id: string;
   start_time: string;
-  cumulative_score: number;
+  rank: number;
 };

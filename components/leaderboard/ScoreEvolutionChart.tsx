@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -8,85 +8,94 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  Tooltip,
+  Label,
 } from "recharts";
-import type { ScoreEvolutionRow } from "@/types/database";
+import type { RankEvolutionRow } from "@/types/database";
 
 interface ScoreEvolutionChartProps {
-  data: ScoreEvolutionRow[];
+  data: RankEvolutionRow[];
 }
 
 export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
-  const [zoomRange, setZoomRange] = useState<{ start: number; end: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const [startMatchIndex, setStartMatchIndex] = useState<number>(0);
+  const [endMatchIndex, setEndMatchIndex] = useState<number>(-1); // -1 means last match
   const chartRef = useRef<HTMLDivElement>(null);
 
-  // Transform data into chart format
-  // Group by user and create series
-  const userMap = new Map<string, ScoreEvolutionRow[]>();
+  // Memoize data transformation
+  const { userMap, allTimestamps, fullChartData, users, colors } = useMemo(() => {
+    // Group by user and create series
+    const userMap = new Map<string, RankEvolutionRow[]>();
 
-  data.forEach((row) => {
-    const key = row.user_id;
-    if (!userMap.has(key)) {
-      userMap.set(key, []);
-    }
-    userMap.get(key)!.push(row);
-  });
-
-  // Get all unique timestamps sorted
-  const allTimestamps = Array.from(
-    new Set(data.map((d) => d.start_time)),
-  ).sort();
-
-  // Build chart data array with each timestamp as a point
-  const fullChartData = allTimestamps.map((timestamp) => {
-    const point: Record<string, string | number> = {
-      timestamp: new Date(timestamp).toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-      }),
-      rawTimestamp: timestamp,
-    };
-
-    userMap.forEach((userRows, userId) => {
-      const userRow = userRows.find((r) => r.start_time === timestamp);
-      const nickname = userRow?.nickname || userRow?.email.split("@")[0] || "Unknown";
-      point[nickname] = userRow?.cumulative_score || 0;
+    data.forEach((row) => {
+      const key = row.user_id;
+      if (!userMap.has(key)) {
+        userMap.set(key, []);
+      }
+      userMap.get(key)!.push(row);
     });
 
-    return point;
-  });
+    // Get all unique timestamps sorted
+    const allTimestamps = Array.from(
+      new Set(data.map((d) => d.start_time)),
+    ).sort();
 
-  // Filter data based on zoom range
-  const chartData = zoomRange
-    ? fullChartData.filter(
-        (d) => Number(d.rawTimestamp) >= zoomRange.start && Number(d.rawTimestamp) <= zoomRange.end
-      )
-    : fullChartData;
+    // Build chart data array with each timestamp as a point
+    const fullChartData = allTimestamps.map((timestamp) => {
+      const point: Record<string, string | number> = {
+        timestamp: new Date(timestamp).toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
+        rawTimestamp: timestamp,
+      };
 
-  // Get unique colors for each user
-  const colors = [
-    "#8884d8",
-    "#82ca9d",
-    "#ffc658",
-    "#ff7300",
-    "#00C49F",
-    "#FFBB28",
-    "#FF8042",
-    "#8dd1e1",
-    "#d084d0",
-    "#ffb347",
-  ];
+      userMap.forEach((userRows, userId) => {
+        const userRow = userRows.find((r) => r.start_time === timestamp);
+        const nickname = userRow?.nickname || userRow?.email.split("@")[0] || "Unknown";
+        point[nickname] = userRow?.rank || 0;
+      });
 
-  const users = Array.from(userMap.entries()).map(([userId, rows]) => ({
-    userId,
-    nickname: rows[0]?.nickname || rows[0]?.email.split("@")[0] || "Unknown",
-  }));
+      return point;
+    });
 
-  // Get the latest score for the hovered line
-  const getHoveredLineLatestScore = () => {
+    // Get unique colors for each user
+    const colors = [
+      "#8884d8",
+      "#82ca9d",
+      "#ffc658",
+      "#ff7300",
+      "#00C49F",
+      "#FFBB28",
+      "#FF8042",
+      "#8dd1e1",
+      "#d084d0",
+      "#ffb347",
+    ];
+
+    const users = Array.from(userMap.entries()).map(([userId, rows]) => ({
+      userId,
+      nickname: rows[0]?.nickname || rows[0]?.email.split("@")[0] || "Unknown",
+    }));
+
+    return { userMap, allTimestamps, fullChartData, users, colors };
+  }, [data]);
+
+  // Filter data based on match range
+  const chartData = useMemo(() => {
+    const startIndex = startMatchIndex;
+    const endIndex = endMatchIndex === -1 ? fullChartData.length - 1 : endMatchIndex;
+
+    if (startIndex === 0 && endIndex === fullChartData.length - 1) {
+      return fullChartData;
+    }
+
+    return fullChartData.slice(startIndex, endIndex + 1);
+  }, [fullChartData, startMatchIndex, endMatchIndex]);
+
+  // Get the latest rank for the hovered line
+  const getHoveredLineLatestRank = () => {
     if (!hoveredLine) return null;
     const userRows = userMap.get(
       users.find((u) => u.nickname === hoveredLine)?.userId || ""
@@ -95,7 +104,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     const latest = userRows[userRows.length - 1];
     return {
       nickname: hoveredLine,
-      score: latest.cumulative_score,
+      rank: latest.rank,
       date: new Date(latest.start_time).toLocaleDateString("fr-FR", {
         day: "2-digit",
         month: "2-digit",
@@ -103,97 +112,70 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     };
   };
 
-  const hoveredLineInfo = getHoveredLineLatestScore();
+  const hoveredLineInfo = getHoveredLineLatestRank();
 
-  // Handle drag-to-zoom
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button !== 0) return; // Only left click
-    const rect = chartRef.current?.getBoundingClientRect();
-    if (!rect) return;
+  // Custom tooltip component
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
 
-    setIsDragging(true);
-    setDragStart({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
-    setDragEnd({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+        <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {payload[0].payload.timestamp}
+        </p>
+        {payload.map((entry: any, index: number) => (
+          <p
+            key={index}
+            className="text-sm"
+            style={{ color: entry.color }}
+          >
+            {entry.name}: #{entry.value}
+          </p>
+        ))}
+      </div>
+    );
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging || !dragStart) return;
-    const rect = chartRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    setDragEnd({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
+  // Custom label component for user names at end of lines
+  const CustomLineLabel = (props: any) => {
+    const { x, y, value, color } = props;
+    return (
+      <text
+        x={x}
+        y={y}
+        fill={color}
+        fontSize={12}
+        fontWeight={500}
+        textAnchor="start"
+        dominantBaseline="middle"
+        style={{
+          filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.3))",
+        }}
+      >
+        {value}
+      </text>
+    );
   };
 
-  const handleMouseUp = (e: React.MouseEvent) => {
-    if (!isDragging || !dragStart || !dragEnd) return;
-
-    const rect = chartRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    // Calculate the data range based on the drag area
-    const chartWidth = rect.width;
-    const startX = Math.min(dragStart.x, dragEnd.x);
-    const endX = Math.max(dragStart.x, dragEnd.x);
-
-    // If drag is too small, just reset zoom
-    if (endX - startX < 20) {
-      setZoomRange(null);
-      setIsDragging(false);
-      setDragStart(null);
-      setDragEnd(null);
-      return;
-    }
-
-    // Map x coordinates to data indices
-    const startIndex = Math.floor((startX / chartWidth) * fullChartData.length);
-    const endIndex = Math.ceil((endX / chartWidth) * fullChartData.length);
-
-    // Get the actual timestamps
-    const startTimestamp = fullChartData[Math.max(0, startIndex)]?.rawTimestamp;
-    const endTimestamp = fullChartData[Math.min(fullChartData.length - 1, endIndex)]?.rawTimestamp;
-
-    if (startTimestamp && endTimestamp) {
-      setZoomRange({ start: Number(startTimestamp), end: Number(endTimestamp) });
-    }
-
-    setIsDragging(false);
-    setDragStart(null);
-    setDragEnd(null);
-  };
-
-  const resetZoom = () => {
-    setZoomRange(null);
-  };
+  // Get available match options
+  const matchOptions = allTimestamps.map((timestamp, index) => ({
+    index,
+    label: new Date(timestamp).toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+    }),
+  }));
 
   return (
-    <div
-      className="relative w-full"
-      onMouseLeave={() => {
-        setHoveredLine(null);
-        if (isDragging) {
-          setIsDragging(false);
-          setDragStart(null);
-          setDragEnd(null);
-        }
-      }}
-    >
-      {/* Fixed info box in top-left */}
+    <div className="relative w-full">
+      {/* Floating tooltip - positioned absolutely to avoid layout shift */}
       {hoveredLineInfo && (
         <div className="absolute left-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
           <p className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             {hoveredLineInfo.nickname}
           </p>
           <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-            {hoveredLineInfo.score} pts
+            #{hoveredLineInfo.rank}
           </p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Dernier match: {hoveredLineInfo.date}
@@ -201,44 +183,48 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
         </div>
       )}
 
-      {/* Reset zoom button */}
-      {zoomRange && (
-        <button
-          onClick={resetZoom}
-          className="absolute right-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
-        >
-          Réinitialiser le zoom
-        </button>
-      )}
-
-      {/* Zoom hint */}
-      {!zoomRange && (
-        <div className="absolute right-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white/90 p-2 text-xs text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-400">
-          <p>🖱️ Drag: zoom sur zone</p>
+      {/* Match range filters */}
+      <div className="mb-4 flex gap-4">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Début:
+          </label>
+          <select
+            value={startMatchIndex}
+            onChange={(e) => setStartMatchIndex(Number(e.target.value))}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            {matchOptions.map((option) => (
+              <option key={option.index} value={option.index}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Fin:
+          </label>
+          <select
+            value={endMatchIndex}
+            onChange={(e) => setEndMatchIndex(Number(e.target.value))}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            <option value={-1}>Dernier match</option>
+            {matchOptions.slice().reverse().map((option) => (
+              <option key={option.index} value={option.index}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div
         ref={chartRef}
         className="relative"
         style={{ width: "100%", height: "500px" }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
       >
-        {/* Selection rectangle overlay */}
-        {isDragging && dragStart && dragEnd && (
-          <div
-            className="absolute pointer-events-none border-2 border-blue-500 bg-blue-500/20"
-            style={{
-              left: Math.min(dragStart.x, dragEnd.x),
-              top: Math.min(dragStart.y, dragEnd.y),
-              width: Math.abs(dragEnd.x - dragStart.x),
-              height: Math.abs(dragEnd.y - dragStart.y),
-            }}
-          />
-        )}
-
         <ResponsiveContainer width="100%" height={500}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -249,7 +235,12 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
               textAnchor="end"
               height={80}
             />
-            <YAxis tick={{ fontSize: 12 }} />
+            <YAxis
+              tick={{ fontSize: 12 }}
+              reversed={true}
+              domain={[1, "auto"]}
+            />
+            <Tooltip content={<CustomTooltip />} />
             {users.map((user, index) => {
               const isHovered = hoveredLine === user.nickname;
               const isDimmed = hoveredLine && !isHovered;
@@ -266,7 +257,12 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
                   opacity={isDimmed ? 0.2 : 1}
                   onMouseEnter={() => setHoveredLine(user.nickname)}
                   onMouseLeave={() => setHoveredLine(null)}
-                />
+                >
+                  <Label
+                    position="right"
+                    content={<CustomLineLabel value={user.nickname} color={colors[index % colors.length]} />}
+                  />
+                </Line>
               );
             })}
           </LineChart>

@@ -5,7 +5,7 @@ import { LeaderboardTable } from "./LeaderboardTable";
 import { ScoreEvolutionChart } from "./ScoreEvolutionChart";
 import { supabase } from "@/lib/supabaseClient";
 import type { LeaderboardDetailedRow } from "@/types/database";
-import type { ScoreEvolutionRow } from "@/types/database";
+import type { RankEvolutionRow } from "@/types/database";
 
 type LeaderboardTabsProps = {
   initialRows: LeaderboardDetailedRow[];
@@ -15,7 +15,7 @@ export function LeaderboardTabs({ initialRows }: LeaderboardTabsProps) {
   const [activeTab, setActiveTab] = useState<"leaderboard" | "evolution">(
     "leaderboard",
   );
-  const [chartData, setChartData] = useState<ScoreEvolutionRow[] | null>(null);
+  const [chartData, setChartData] = useState<RankEvolutionRow[] | null>(null);
   const [chartLoaded, setChartLoaded] = useState(false);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);

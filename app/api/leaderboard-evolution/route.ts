@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { data, error } = await supabase.rpc("get_score_evolution");
+    const { data, error } = await supabase.rpc("get_rank_evolution");
 
     if (error) {
       console.error("[LeaderboardEvolution] RPC error:", error);
