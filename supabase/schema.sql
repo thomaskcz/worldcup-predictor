@@ -24,7 +24,8 @@ CREATE TABLE public.matches (
                                 updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                                 external_id text,
                                 winner text CHECK (winner IS NULL OR (winner = ANY (ARRAY['home'::text, 'away'::text]))),
-                                CONSTRAINT matches_pkey PRIMARY KEY (id)
+                                CONSTRAINT matches_pkey PRIMARY KEY (id),
+                                CONSTRAINT matches_external_id_unique UNIQUE (external_id)
 );
 CREATE TABLE public.predictions (
                                     id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -97,7 +98,8 @@ CREATE TABLE public.competition_leaderboard (
                                                 breakdown_json jsonb,
                                                 updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                                                 CONSTRAINT competition_leaderboard_pkey PRIMARY KEY (id),
-                                                CONSTRAINT competition_leaderboard_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+                                                CONSTRAINT competition_leaderboard_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+                                                CONSTRAINT competition_leaderboard_total_points_sum_check CHECK (total_points = group_points + knockout_points)
 );
 CREATE TABLE public.competition_visibility_settings (
                                                         id uuid NOT NULL DEFAULT gen_random_uuid(),

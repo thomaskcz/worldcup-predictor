@@ -219,3 +219,22 @@ FOR UPDATE
                TO authenticated
                USING (auth.uid() = id)
     WITH CHECK (auth.uid() = id);
+
+-- =========================================
+-- COMPETITION_LEADERBOARD RLS POLICIES
+-- =========================================
+
+ALTER TABLE public.competition_leaderboard ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own leaderboard entry"
+ON public.competition_leaderboard
+FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage leaderboard"
+ON public.competition_leaderboard
+FOR ALL
+TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
