@@ -114,6 +114,43 @@ CHECK (total_points = group_points + knockout_points);
 RAISE NOTICE 'P0-6 completed: CHECK constraint added to competition_leaderboard for point consistency';
 
 -- =========================================
+-- P0-5: Fix competition_visibility_settings design (singleton global)
+-- =========================================
+-- Issue: No INSERT/DELETE policies, unclear if singleton or per-user
+-- Impact: Table might be unusable or confusing
+-- Risk if not fixed: Configuration management issues
+-- Strategy: Add missing policies for singleton global design
+-- Destructive: NO - only adds policies, documents singleton intent
+
+-- Ensure RLS is enabled (should already be enabled, but ensure)
+ALTER TABLE public.competition_visibility_settings ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Admins can insert (initialize) the singleton settings
+CREATE POLICY "Admins can insert visibility settings"
+ON public.competition_visibility_settings
+FOR INSERT
+TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+-- Policy: Admins can update the singleton settings
+CREATE POLICY "Only admins can update visibility settings"
+ON public.competition_visibility_settings
+FOR UPDATE
+TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+-- Policy: Admins can delete the singleton settings
+CREATE POLICY "Admins can delete visibility settings"
+ON public.competition_visibility_settings
+FOR DELETE
+TO authenticated
+USING (public.is_admin());
+
+RAISE NOTICE 'P0-5 completed: Added INSERT and DELETE policies for singleton global competition_visibility_settings';
+
+-- =========================================
 -- POST-MIGRATION VERIFICATION
 -- =========================================
 
@@ -185,6 +222,23 @@ BEGIN
     END IF;
 END $$;
 
+-- Verify policies exist on competition_visibility_settings
+DO $$
+DECLARE
+    policy_count integer;
+BEGIN
+    SELECT COUNT(*) INTO policy_count
+    FROM pg_policies
+    WHERE tablename = 'competition_visibility_settings'
+    AND schemaname = 'public';
+
+    IF policy_count = 4 THEN
+        RAISE NOTICE 'Verification passed: 4 policies exist on competition_visibility_settings (SELECT, INSERT, UPDATE, DELETE)';
+    ELSE
+        RAISE EXCEPTION 'Verification failed: Expected 4 policies on competition_visibility_settings, found %', policy_count;
+    END IF;
+END $$;
+
 -- =========================================
 -- MIGRATION COMPLETE
 -- =========================================
@@ -195,6 +249,7 @@ RAISE NOTICE '========================================';
 RAISE NOTICE 'Fixed issues:';
 RAISE NOTICE '  - P0-1: RLS enabled on competition_leaderboard';
 RAISE NOTICE '  - P0-4: UNIQUE constraint on matches.external_id';
+RAISE NOTICE '  - P0-5: Fixed competition_visibility_settings as singleton global';
 RAISE NOTICE '  - P0-6: CHECK constraint on competition_leaderboard';
 RAISE NOTICE '========================================';
 RAISE NOTICE 'IMPORTANT: Verify application functionality after migration';

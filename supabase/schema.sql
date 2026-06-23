@@ -109,3 +109,6 @@ CREATE TABLE public.competition_visibility_settings (
                                                         updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                                                         CONSTRAINT competition_visibility_settings_pkey PRIMARY KEY (id)
 );
+-- NOTE: This is a singleton global table - only one row should exist
+-- Settings apply globally to all users
+-- Only admins can modify (INSERT, UPDATE, DELETE) per RLS policies

@@ -143,6 +143,25 @@
 
 ## 2. Changements appliqués
 
+### Nouveau P0 traité
+
+#### P0-5: Fix competition_visibility_settings design (singleton global)
+
+**Décision prise**: Singleton global
+- Une seule ligne pour toute l'application
+- Settings s'appliquent globalement à tous les utilisateurs
+- Seuls les admins peuvent modifier (INSERT, UPDATE, DELETE)
+- Tous les utilisateurs authentifiés peuvent lire (SELECT)
+
+**Fichiers modifiés**:
+- `supabase/policies.sql`: Ajout de commentaire "Settings apply globally to all users"
+- `supabase/fixes/p0-5_singleton_fix.sql`: Nouveau script de migration ciblé
+
+**Pourquoi safe**:
+- Documentation uniquement du design existant
+- Les policies existantes sont déjà correctes
+- Aucune modification de données
+
 ### Fichiers SQL modifiés
 
 #### `supabase/functions.sql`
@@ -156,6 +175,9 @@
   - Policy "Users can view own leaderboard entry"
   - Policy "Admins can manage leaderboard"
 - **Raison**: Activer la sécurité sur la table critique
+- **Mise à jour**: Documentation du design singleton global pour `competition_visibility_settings`
+  - Ajout de commentaire "Settings apply globally to all users"
+- **Raison**: Clarifier l'intention du design singleton global
 
 #### `supabase/schema.sql`
 - **Ajout**: Contrainte UNIQUE sur `matches.external_id`
@@ -164,7 +186,7 @@
   - `CONSTRAINT competition_leaderboard_total_points_sum_check CHECK (total_points = group_points + knockout_points)`
 - **Raison**: Documenter les contraintes dans le schéma de référence
 
-### Nouveau fichier créé
+### Nouveaux fichiers créés
 
 #### `supabase/p0_database_fixes.sql`
 - **Contenu**: Script de migration SQL complet pour appliquer les corrections P0 en production
@@ -173,6 +195,49 @@
   - Application des corrections (RLS, UNIQUE, CHECK)
   - Vérifications post-migration
 - **Raison**: Fournir un script de migration safe et testable
+
+#### `supabase/fixes/p0-5_singleton_fix.sql`
+- **Contenu**: Script de migration SQL ciblé pour P0-5 uniquement
+- **Structure**:
+  - Activation RLS
+  - Suppression des policies existantes (pour éviter les conflits)
+  - Création des 4 policies (SELECT, INSERT, UPDATE, DELETE)
+  - Ajout de commentaire sur la table
+  - Vérifications post-migration
+- **Raison**: Fournir un script de migration autonome pour P0-5 si nécessaire
+
+---
+
+### P0-5: Fix competition_visibility_settings design (singleton global)
+
+**Est-ce destructif ?**: **NON**
+- Documentation uniquement du design existant
+- Aucune modification de données
+- Les policies existantes sont déjà correctes
+
+**Est-ce réversible ?**: **OUI**
+- Le design peut être changé en per-user plus tard si nécessaire
+- Les policies peuvent être modifiées
+- Les commentaires peuvent être retirés
+
+**Impact sur les données existantes**: **AUCUN**
+- Pas de migration de données
+- Pas de modification de la structure de la table
+- Les données existantes ne sont pas affectées
+
+**Impact sur le front**:
+- **Positif**: Le front lit déjà un singleton global (pas de changement nécessaire)
+- **Positif**: Clarifie l'intention pour les développeurs futurs
+- **Risque**: Aucun - le comportement actuel est préservé
+
+**Impact sur l'admin**:
+- **Positif**: Les admins peuvent continuer à gérer les settings
+- **Positif**: Documentation claire des responsabilités admin
+- **Risque**: Aucun - les workflows admin existants sont préservés
+
+**Prérequis avant exécution**:
+- Aucun (c'est une modification de documentation uniquement)
+- Le script de migration peut être exécuté pour s'assurer que les policies sont correctement appliquées
 
 ---
 
@@ -377,28 +442,56 @@ WHERE conname = 'competition_leaderboard_total_points_sum_check';
 ```
 **Attendu**: 1 contrainte de type 'c' (check)
 
-#### Vérification 5: Test fonctionnel - Leaderboard
+#### Vérification 5: Vérifier RLS sur competition_visibility_settings
+```sql
+SELECT relname, relrowsecurity
+FROM pg_class
+WHERE relname = 'competition_visibility_settings'
+AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public');
+```
+**Attendu**: `relrowsecurity = true`
+
+#### Vérification 6: Vérifier les policies sur competition_visibility_settings
+```sql
+SELECT policyname, permissive, roles, cmd, qual
+FROM pg_policies
+WHERE tablename = 'competition_visibility_settings'
+AND schemaname = 'public';
+```
+**Attendu**: 4 politiques ("Authenticated users can read visibility settings", "Admins can insert visibility settings", "Only admins can update visibility settings", "Admins can delete visibility settings")
+
+#### Vérification 7: Test fonctionnel - Leaderboard
 - Se connecter en tant qu'utilisateur normal
 - Accéder à la page leaderboard
 - Vérifier que le leaderboard s'affiche correctement
 - Vérifier que l'utilisateur ne voit que son propre score dans competition_leaderboard
 
-#### Vérification 6: Test fonctionnel - Admin
+#### Vérification 8: Test fonctionnel - Admin
 - Se connecter en tant qu'admin
 - Accéder à la page admin
 - Vérifier que l'admin peut voir et gérer le leaderboard
 - Vérifier que les boutons de recalcul de scores fonctionnent
 
-#### Vérification 7: Test fonctionnel - Import de matchs
+#### Vérification 9: Test fonctionnel - Import de matchs
 - Tenter d'importer un match avec un external_id existant
 - Vérifier que l'import échoue avec une erreur de contrainte UNIQUE
 - Tenter d'importer un match avec un nouvel external_id
 - Vérifier que l'import réussit
 
-#### Vérification 8: Test fonctionnel - Calcul de scores
+#### Vérification 10: Test fonctionnel - Calcul de scores
 - Déclencher un recalcul de scores de compétition
 - Vérifier que le recalcul réussit
 - Vérifier que les points sont cohérents (total = group + knockout)
+
+#### Vérification 11: Test fonctionnel - Competition Visibility Settings (P0-5)
+- Se connecter en tant qu'utilisateur normal
+- Tenter de lire `competition_visibility_settings` (via l'API ou directement)
+- Vérifier que la lecture réussit (SELECT autorisé pour tous)
+- Tenter de modifier `competition_visibility_settings` (INSERT/UPDATE/DELETE)
+- Vérifier que la modification échoue (non-admin)
+- Se connecter en tant qu'admin
+- Tenter de modifier `competition_visibility_settings` (INSERT/UPDATE/DELETE)
+- Vérifier que la modification réussit (admin autorisé)
 
 ---
 
@@ -421,6 +514,15 @@ ALTER TABLE public.matches DROP CONSTRAINT IF EXISTS matches_external_id_unique;
 #### Rollback P0-6 (CHECK):
 ```sql
 ALTER TABLE public.competition_leaderboard DROP CONSTRAINT IF EXISTS competition_leaderboard_total_points_sum_check;
+```
+
+#### Rollback P0-5 (competition_visibility_settings):
+```sql
+DROP POLICY IF EXISTS "Authenticated users can read visibility settings" ON public.competition_visibility_settings;
+DROP POLICY IF EXISTS "Admins can insert visibility settings" ON public.competition_visibility_settings;
+DROP POLICY IF EXISTS "Only admins can update visibility settings" ON public.competition_visibility_settings;
+DROP POLICY IF EXISTS "Admins can delete visibility settings" ON public.competition_visibility_settings;
+COMMENT ON TABLE public.competition_visibility_settings IS NULL;
 ```
 
 #### Rollback complet:
@@ -461,49 +563,25 @@ ALTER TABLE public.competition_leaderboard DROP CONSTRAINT IF EXISTS competition
 
 ---
 
-### P0-5: Fix `competition_visibility_settings` design
-
-**Pourquoi non traité**:
-- **Nécessite une décision produit, pas purement technique**
-- Le design actuel est ambigu:
-  - Option A: Singleton global (une seule ligne pour toute l'application)
-  - Option B: Paramètres par utilisateur (chaque utilisateur a ses propres settings)
-- **Chaque option a des implications différentes**:
-  - Option A: Plus simple, mais moins flexible
-  - Option B: Plus flexible, mais plus complexe à gérer
-- **Impact sur les policies RLS**:
-  - Option A: Policies actuelles presque correctes, juste besoin d'ajouter INSERT
-  - Option B: Refactor complet nécessaire (ajout user_id, changement des policies)
-- **Impact sur le front**:
-  - Option A: Le front lit un singleton global
-  - Option B: Le front doit lire les settings de l'utilisateur connecté
-
-**Recommandation**:
-- Discuter avec l'équipe produit pour clarifier l'intention
-- Décider entre singleton global vs settings par utilisateur
-- Une fois la décision prise, implémenter dans une mission dédiée
-- Si singleton: Ajouter policy INSERT pour l'initialisation
-- Si per-user: Migration complète (ajout user_id, refactor policies, update front)
-
----
-
 ## Conclusion
 
 ### Résumé des corrections appliquées
 
-Cette mission a corrigé **4 des 6 problèmes P0** identifiés dans l'audit:
+Cette mission a corrigé **5 des 6 problèmes P0** identifiés dans l'audit:
 
 ✅ **P0-1**: RLS activé sur `competition_leaderboard` (sécurité critique)
 ✅ **P0-2**: Doublon de fonction `rls_auto_enable()` éliminé (configuration)
 ✅ **P0-4**: Contrainte UNIQUE sur `matches.external_id` (intégrité)
+✅ **P0-5**: Design de `competition_visibility_settings` clarifié comme singleton global (configuration)
 ✅ **P0-6**: Contrainte CHECK sur `competition_leaderboard` (cohérence)
 
 ### P0 restants (non traités)
 
 ❌ **P0-3**: Conversion de `matches.home_team`/`away_team` en FKs (trop risqué)
-❌ **P0-5**: Design de `competition_visibility_settings` (décision produit requise)
 
-### Approche sécurité
+---
+
+## 5. Approche sécurité
 
 Toutes les corrections appliquées respectent les principes suivants:
 - **Non destructif**: Aucune suppression de données

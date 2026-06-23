@@ -42,6 +42,7 @@ USING (true)
 WITH CHECK (true);
 
 
+
 ALTER TABLE public.competition_visibility_settings ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can read visibility settings"
@@ -50,15 +51,30 @@ FOR SELECT
                TO authenticated
                USING (true);
 
--- NOTE: "Only admins can update visibility settings"
--- nécessite une fonction is_admin()
+-- NOTE: Only admins can manage (INSERT, UPDATE, DELETE) visibility settings
+-- This is a singleton global table - only one row should exist
+-- Settings apply globally to all users
+-- Policies ensure only admins can initialize and modify the settings
+
+CREATE POLICY "Admins can insert visibility settings"
+ON public.competition_visibility_settings
+FOR INSERT
+               TO authenticated
+USING (public.is_admin())
+    WITH CHECK (public.is_admin());
 
 CREATE POLICY "Only admins can update visibility settings"
 ON public.competition_visibility_settings
 FOR UPDATE
                TO authenticated
-               USING (public.is_admin())
+USING (public.is_admin())
     WITH CHECK (public.is_admin());
+
+CREATE POLICY "Admins can delete visibility settings"
+ON public.competition_visibility_settings
+FOR DELETE
+               TO authenticated
+USING (public.is_admin());
 
 
 
