@@ -7,7 +7,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
 } from "recharts";
 import type { ScoreEvolutionRow } from "@/types/database";
@@ -73,33 +72,46 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     nickname: rows[0]?.nickname || rows[0]?.email.split("@")[0] || "Unknown",
   }));
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      // Only show the first (hovered) entry
-      const entry = payload[0];
-
-      return (
-        <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-          <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {label}
-          </p>
-          <p
-            className="text-sm text-zinc-700 dark:text-zinc-300"
-            style={{ color: entry.color }}
-          >
-            {entry.name}: {entry.value}
-          </p>
-        </div>
-      );
-    }
-    return null;
+  // Get the latest score for the hovered line
+  const getHoveredLineLatestScore = () => {
+    if (!hoveredLine) return null;
+    const userRows = userMap.get(
+      users.find((u) => u.nickname === hoveredLine)?.userId || ""
+    );
+    if (!userRows || userRows.length === 0) return null;
+    const latest = userRows[userRows.length - 1];
+    return {
+      nickname: hoveredLine,
+      score: latest.cumulative_score,
+      date: new Date(latest.start_time).toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+      }),
+    };
   };
+
+  const hoveredLineInfo = getHoveredLineLatestScore();
 
   return (
     <div
-      className="w-full"
+      className="relative w-full"
       onMouseLeave={() => setHoveredLine(null)}
     >
+      {/* Fixed info box in top-left */}
+      {hoveredLineInfo && (
+        <div className="absolute left-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+          <p className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            {hoveredLineInfo.nickname}
+          </p>
+          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+            {hoveredLineInfo.score} pts
+          </p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Dernier match: {hoveredLineInfo.date}
+          </p>
+        </div>
+      )}
+
       <ResponsiveContainer width="100%" height={500}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -111,7 +123,6 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
             height={80}
           />
           <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip content={<CustomTooltip />} />
           {users.map((user, index) => {
             const isHovered = hoveredLine === user.nickname;
             const isDimmed = hoveredLine && !isHovered;
@@ -124,7 +135,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
                 stroke={colors[index % colors.length]}
                 strokeWidth={isHovered ? 3 : 2}
                 dot={false}
-                activeDot={{ r: 0, fill: "transparent" }}
+                activeDot={false}
                 opacity={isDimmed ? 0.2 : 1}
                 onMouseEnter={() => setHoveredLine(user.nickname)}
                 onMouseLeave={() => setHoveredLine(null)}
