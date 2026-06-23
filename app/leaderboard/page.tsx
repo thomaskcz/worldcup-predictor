@@ -1,4 +1,4 @@
-import { LeaderboardTable } from "@/components/leaderboard/LeaderboardTable";
+import { LeaderboardTabs } from "@/components/leaderboard/LeaderboardTabs";
 import { RecalculateScoresButton } from "@/components/leaderboard/RecalculateScoresButton";
 import { PageContainer } from "@/components/PageContainer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -53,7 +53,7 @@ export default async function LeaderboardPage() {
           {error.message}
         </div>
       ) : (
-        <LeaderboardTable rows={rowsWithRanks} />
+        <LeaderboardTabs initialRows={rowsWithRanks} />
       )}
     </PageContainer>
   );
