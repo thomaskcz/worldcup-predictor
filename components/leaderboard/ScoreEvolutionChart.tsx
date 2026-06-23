@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -8,7 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  LabelList,
+  ReferenceLine,
 } from "recharts";
 import type { RankEvolutionRow } from "@/types/database";
 
@@ -16,59 +16,12 @@ interface ScoreEvolutionChartProps {
   data: RankEvolutionRow[];
 }
 
-// Custom label renderer to show label only at the last data point
-interface CustomLabelProps {
-  x?: number;
-  y?: number;
-  value?: any;
-  index?: number;
-  nickname?: string;
-  color?: string;
-  isHovered?: boolean;
-  isDimmed?: boolean;
-  payload?: any;
-  dataLength?: number;
-}
-
-function CustomLabel({
-  x,
-  y,
-  value,
-  index,
-  nickname,
-  color,
-  isHovered,
-  isDimmed,
-  payload,
-  dataLength,
-}: CustomLabelProps) {
-  // Only show label at the last data point
-  if (dataLength === undefined || index !== dataLength - 1) return null;
-
-  return (
-    <text
-      x={x ? x + 10 : 0}
-      y={y}
-      fill={color}
-      fontSize={12}
-      fontWeight={500}
-      textAnchor="start"
-      dominantBaseline="middle"
-      opacity={isDimmed === true ? 0.2 : 1}
-      style={{
-        filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.3))",
-      }}
-    >
-      {nickname}
-    </text>
-  );
-}
-
 export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
   const [startMatchIndex, setStartMatchIndex] = useState<number>(0);
   const [endMatchIndex, setEndMatchIndex] = useState<number>(-1); // -1 means last match
   const [yAxisDomain, setYAxisDomain] = useState<[number, number]>([1, 1]);
+  const chartRef = useRef<HTMLDivElement>(null);
 
   // Memoize data transformation
   const { allTimestamps, fullChartData, users, colors, matchOptions } = useMemo(() => {
@@ -179,6 +132,22 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     setYAxisDomain([minRank, maxRank]);
   }, [chartData, users]);
 
+  // Get last rank for each user for ReferenceLine positioning
+  const lastRanksMap = useMemo(() => {
+    if (chartData.length === 0) return new Map<string, number>();
+    const lastDataPoint = chartData[chartData.length - 1];
+    const ranks = new Map<string, number>();
+
+    users.forEach((user) => {
+      const lastRank = lastDataPoint[user.nickname] as number;
+      if (lastRank > 0) {
+        ranks.set(user.nickname, lastRank);
+      }
+    });
+
+    return ranks;
+  }, [chartData, users]);
+
   return (
     <div className="relative w-full">
       {/* Match range filters */}
@@ -240,32 +209,36 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
             {users.map((user, index) => {
               const isHovered = hoveredLine === user.nickname;
               const isDimmed = Boolean(hoveredLine && !isHovered);
+              const lastRank = lastRanksMap.get(user.nickname);
 
               return (
-                <Line
-                  key={user.userId}
-                  type="monotone"
-                  dataKey={user.nickname}
-                  stroke={colors[index % colors.length]}
-                  strokeWidth={isHovered ? 3 : 2}
-                  dot={false}
-                  activeDot={false}
-                  opacity={isDimmed ? 0.2 : 1}
-                  onMouseEnter={() => setHoveredLine(user.nickname)}
-                  onMouseLeave={() => setHoveredLine(null)}
-                >
-                  <LabelList
-                    content={
-                      <CustomLabel
-                        nickname={user.nickname}
-                        color={colors[index % colors.length]}
-                        isHovered={isHovered}
-                        isDimmed={isDimmed}
-                        dataLength={chartData.length}
-                      />
-                    }
+                <React.Fragment key={user.userId}>
+                  <Line
+                    type="monotone"
+                    dataKey={user.nickname}
+                    stroke={colors[index % colors.length]}
+                    strokeWidth={isHovered ? 3 : 2}
+                    dot={false}
+                    activeDot={false}
+                    opacity={isDimmed ? 0.2 : 1}
+                    onMouseEnter={() => setHoveredLine(user.nickname)}
+                    onMouseLeave={() => setHoveredLine(null)}
                   />
-                </Line>
+                  {lastRank && (
+                    <ReferenceLine
+                      y={lastRank}
+                      stroke="transparent"
+                      label={{
+                        value: user.nickname,
+                        position: "right",
+                        fill: colors[index % colors.length],
+                        fontSize: 12,
+                        fontWeight: 500,
+                        opacity: isDimmed ? 0.2 : 1,
+                      }}
+                    />
+                  )}
+                </React.Fragment>
               );
             })}
           </LineChart>
