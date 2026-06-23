@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   LineChart,
   Line,
@@ -7,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import type { ScoreEvolutionRow } from "@/types/database";
@@ -17,6 +17,8 @@ interface ScoreEvolutionChartProps {
 }
 
 export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
+  const [hoveredLine, setHoveredLine] = useState<string | null>(null);
+
   // Transform data into chart format
   // Group by user and create series
   const userMap = new Map<string, ScoreEvolutionRow[]>();
@@ -71,6 +73,28 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     nickname: rows[0]?.nickname || rows[0]?.email.split("@")[0] || "Unknown",
   }));
 
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+          <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+            {label}
+          </p>
+          {payload.map((entry: any, index: number) => (
+            <p
+              key={index}
+              className="text-sm text-zinc-700 dark:text-zinc-300"
+              style={{ color: entry.color }}
+            >
+              {entry.name}: {entry.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="w-full">
       <ResponsiveContainer width="100%" height={500}>
@@ -84,19 +108,26 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
             height={80}
           />
           <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip />
-          <Legend />
-          {users.map((user, index) => (
-            <Line
-              key={user.userId}
-              type="monotone"
-              dataKey={user.nickname}
-              stroke={colors[index % colors.length]}
-              strokeWidth={2}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          ))}
+          <Tooltip content={<CustomTooltip />} />
+          {users.map((user, index) => {
+            const isHovered = hoveredLine === user.nickname;
+            const isDimmed = hoveredLine && !isHovered;
+
+            return (
+              <Line
+                key={user.userId}
+                type="monotone"
+                dataKey={user.nickname}
+                stroke={colors[index % colors.length]}
+                strokeWidth={isHovered ? 3 : 2}
+                dot={false}
+                activeDot={false}
+                opacity={isDimmed ? 0.2 : 1}
+                onMouseEnter={() => setHoveredLine(user.nickname)}
+                onMouseLeave={() => setHoveredLine(null)}
+              />
+            );
+          })}
         </LineChart>
       </ResponsiveContainer>
     </div>
