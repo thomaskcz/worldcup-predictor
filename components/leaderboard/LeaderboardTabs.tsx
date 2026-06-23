@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { LeaderboardTable } from "./LeaderboardTable";
 import { ScoreEvolutionChart } from "./ScoreEvolutionChart";
+import { supabase } from "@/lib/supabaseClient";
 import type { LeaderboardDetailedRow } from "@/types/database";
 import type { ScoreEvolutionRow } from "@/types/database";
 
@@ -30,7 +31,19 @@ export function LeaderboardTabs({ initialRows }: LeaderboardTabsProps) {
     setChartError(null);
 
     try {
-      const response = await fetch("/api/leaderboard-evolution");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error("Vous devez être connecté pour voir l'évolution des scores.");
+      }
+
+      const response = await fetch("/api/leaderboard-evolution", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
       const result = await response.json();
 
       if (!response.ok) {

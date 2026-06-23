@@ -8,7 +8,7 @@ RETURNS TABLE (
   cumulative_score numeric
 )
 LANGUAGE sql
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public
 AS $$
 WITH ordered_matches AS (
