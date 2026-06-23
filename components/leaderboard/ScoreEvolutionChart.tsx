@@ -62,7 +62,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   // Filter data based on zoom range
   const chartData = zoomRange
     ? fullChartData.filter(
-        (d) => d.rawTimestamp >= zoomRange.start && d.rawTimestamp <= zoomRange.end
+        (d) => Number(d.rawTimestamp) >= zoomRange.start && Number(d.rawTimestamp) <= zoomRange.end
       )
     : fullChartData;
 
@@ -162,7 +162,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     const endTimestamp = fullChartData[Math.min(fullChartData.length - 1, endIndex)]?.rawTimestamp;
 
     if (startTimestamp && endTimestamp) {
-      setZoomRange({ start: startTimestamp, end: endTimestamp });
+      setZoomRange({ start: Number(startTimestamp), end: Number(endTimestamp) });
     }
 
     setIsDragging(false);
