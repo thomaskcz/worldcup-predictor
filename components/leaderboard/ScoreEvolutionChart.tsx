@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -8,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  Brush,
 } from "recharts";
 import type { ScoreEvolutionRow } from "@/types/database";
 
@@ -18,6 +17,11 @@ interface ScoreEvolutionChartProps {
 
 export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
+  const [zoomRange, setZoomRange] = useState<{ start: number; end: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
 
   // Transform data into chart format
   // Group by user and create series
@@ -37,12 +41,13 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   ).sort();
 
   // Build chart data array with each timestamp as a point
-  const chartData = allTimestamps.map((timestamp) => {
+  const fullChartData = allTimestamps.map((timestamp) => {
     const point: Record<string, string | number> = {
       timestamp: new Date(timestamp).toLocaleDateString("fr-FR", {
         day: "2-digit",
         month: "2-digit",
       }),
+      rawTimestamp: timestamp,
     };
 
     userMap.forEach((userRows, userId) => {
@@ -53,6 +58,13 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
 
     return point;
   });
+
+  // Filter data based on zoom range
+  const chartData = zoomRange
+    ? fullChartData.filter(
+        (d) => d.rawTimestamp >= zoomRange.start && d.rawTimestamp <= zoomRange.end
+      )
+    : fullChartData;
 
   // Get unique colors for each user
   const colors = [
@@ -93,10 +105,86 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
 
   const hoveredLineInfo = getHoveredLineLatestScore();
 
+  // Handle drag-to-zoom
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return; // Only left click
+    const rect = chartRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+    setDragEnd({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !dragStart) return;
+    const rect = chartRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setDragEnd({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (!isDragging || !dragStart || !dragEnd) return;
+
+    const rect = chartRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    // Calculate the data range based on the drag area
+    const chartWidth = rect.width;
+    const startX = Math.min(dragStart.x, dragEnd.x);
+    const endX = Math.max(dragStart.x, dragEnd.x);
+
+    // If drag is too small, just reset zoom
+    if (endX - startX < 20) {
+      setZoomRange(null);
+      setIsDragging(false);
+      setDragStart(null);
+      setDragEnd(null);
+      return;
+    }
+
+    // Map x coordinates to data indices
+    const startIndex = Math.floor((startX / chartWidth) * fullChartData.length);
+    const endIndex = Math.ceil((endX / chartWidth) * fullChartData.length);
+
+    // Get the actual timestamps
+    const startTimestamp = fullChartData[Math.max(0, startIndex)]?.rawTimestamp;
+    const endTimestamp = fullChartData[Math.min(fullChartData.length - 1, endIndex)]?.rawTimestamp;
+
+    if (startTimestamp && endTimestamp) {
+      setZoomRange({ start: startTimestamp, end: endTimestamp });
+    }
+
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+  };
+
+  const resetZoom = () => {
+    setZoomRange(null);
+  };
+
   return (
     <div
       className="relative w-full"
-      onMouseLeave={() => setHoveredLine(null)}
+      onMouseLeave={() => {
+        setHoveredLine(null);
+        if (isDragging) {
+          setIsDragging(false);
+          setDragStart(null);
+          setDragEnd(null);
+        }
+      }}
     >
       {/* Fixed info box in top-left */}
       {hoveredLineInfo && (
@@ -113,46 +201,77 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
         </div>
       )}
 
-      <ResponsiveContainer width="100%" height={550}>
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="timestamp"
-            tick={{ fontSize: 12 }}
-            angle={-45}
-            textAnchor="end"
-            height={80}
-          />
-          <YAxis tick={{ fontSize: 12 }} />
-          <Brush
-            dataKey="timestamp"
-            height={30}
-            stroke="#8884d8"
-            fill="#8884d8"
-            fillOpacity={0.1}
-            travellerWidth={10}
-          />
-          {users.map((user, index) => {
-            const isHovered = hoveredLine === user.nickname;
-            const isDimmed = hoveredLine && !isHovered;
+      {/* Reset zoom button */}
+      {zoomRange && (
+        <button
+          onClick={resetZoom}
+          className="absolute right-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+        >
+          Réinitialiser le zoom
+        </button>
+      )}
 
-            return (
-              <Line
-                key={user.userId}
-                type="monotone"
-                dataKey={user.nickname}
-                stroke={colors[index % colors.length]}
-                strokeWidth={isHovered ? 3 : 2}
-                dot={false}
-                activeDot={false}
-                opacity={isDimmed ? 0.2 : 1}
-                onMouseEnter={() => setHoveredLine(user.nickname)}
-                onMouseLeave={() => setHoveredLine(null)}
-              />
-            );
-          })}
-        </LineChart>
-      </ResponsiveContainer>
+      {/* Zoom hint */}
+      {!zoomRange && (
+        <div className="absolute right-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white/90 p-2 text-xs text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800/90 dark:text-zinc-400">
+          <p>🖱️ Drag: zoom sur zone</p>
+        </div>
+      )}
+
+      <div
+        ref={chartRef}
+        className="relative"
+        style={{ width: "100%", height: "500px" }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        {/* Selection rectangle overlay */}
+        {isDragging && dragStart && dragEnd && (
+          <div
+            className="absolute pointer-events-none border-2 border-blue-500 bg-blue-500/20"
+            style={{
+              left: Math.min(dragStart.x, dragEnd.x),
+              top: Math.min(dragStart.y, dragEnd.y),
+              width: Math.abs(dragEnd.x - dragStart.x),
+              height: Math.abs(dragEnd.y - dragStart.y),
+            }}
+          />
+        )}
+
+        <ResponsiveContainer width="100%" height={500}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey="timestamp"
+              tick={{ fontSize: 12 }}
+              angle={-45}
+              textAnchor="end"
+              height={80}
+            />
+            <YAxis tick={{ fontSize: 12 }} />
+            {users.map((user, index) => {
+              const isHovered = hoveredLine === user.nickname;
+              const isDimmed = hoveredLine && !isHovered;
+
+              return (
+                <Line
+                  key={user.userId}
+                  type="monotone"
+                  dataKey={user.nickname}
+                  stroke={colors[index % colors.length]}
+                  strokeWidth={isHovered ? 3 : 2}
+                  dot={false}
+                  activeDot={false}
+                  opacity={isDimmed ? 0.2 : 1}
+                  onMouseEnter={() => setHoveredLine(user.nickname)}
+                  onMouseLeave={() => setHoveredLine(null)}
+                />
+              );
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
