@@ -96,9 +96,6 @@ export type CompetitionLeaderboardRow = {
   group_points: number;
   knockout_points: number;
   breakdown_json: Record<string, unknown> | null;
-  previous_rank: number | null;
-  current_rank: number | null;
-  rank_delta: number | null;
   updated_at: string;
 };
 
@@ -120,10 +117,7 @@ export type LeaderboardDetailedRow = {
   exact_score_count: number;
   group_stage_points: number;
   knockout_points: number;
-  previous_rank: number | null;
-  current_rank: number | null;
-  rank_delta: number | null;
-  display_rank?: number; // Optional field for UI display (fallback when current_rank is null)
+  display_rank?: number;
 };
 
 export type UserPredictionWithProfile = {
@@ -134,15 +128,4 @@ export type UserPredictionWithProfile = {
   nickname: string | null;
   email: string;
   score: number | null;
-};
-
-export type RankEvolutionRow = {
-  nickname: string | null;
-  email: string;
-  user_id: string;
-  start_time: string;
-  rank: number;
-  match_id: string;
-  home_team: string;
-  away_team: string;
 };

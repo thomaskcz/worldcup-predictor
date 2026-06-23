@@ -1,6 +1,5 @@
 import { getDisplayName } from "@/lib/displayName";
 import type { LeaderboardDetailedRow } from "@/types/database";
-import { RankEvolutionBadge } from "./RankEvolutionBadge";
 
 type LeaderboardTableProps = {
   rows: LeaderboardDetailedRow[];
@@ -45,9 +44,6 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
       <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
         <thead className="bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900">
           <tr>
-            <th className="hidden w-16 px-3 py-4 text-center text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 md:table-cell">
-              
-            </th>
             <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               Rang
             </th>
@@ -76,7 +72,7 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
         </thead>
         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {rows.map((row) => {
-            const rank = row.display_rank ?? row.current_rank ?? 0;
+            const rank = row.display_rank ?? 0;
             const rankBadge = getRankBadge(rank);
 
             return (
@@ -84,12 +80,6 @@ export function LeaderboardTable({ rows }: LeaderboardTableProps) {
                 key={row.user_id}
                 className={`transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${getRankClassName(rank)}`}
               >
-                <td className="hidden px-3 py-4 text-center md:table-cell">
-                  <RankEvolutionBadge
-                    previousRank={row.previous_rank}
-                    currentRank={row.current_rank}
-                  />
-                </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">{rankBadge}</span>
