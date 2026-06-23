@@ -99,5 +99,11 @@ CREATE TABLE public.competition_leaderboard (
                                                 CONSTRAINT competition_leaderboard_pkey PRIMARY KEY (id),
                                                 CONSTRAINT competition_leaderboard_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-CREATE INDEX competition_leaderboard_user_id_idx ON public.competition_leaderboard(user_id);
-CREATE INDEX competition_leaderboard_total_points_idx ON public.competition_leaderboard(total_points);
+CREATE TABLE public.competition_visibility_settings (
+                                                        id uuid NOT NULL DEFAULT gen_random_uuid(),
+                                                        show_group_predictions boolean NOT NULL DEFAULT false,
+                                                        show_semi_predictions boolean NOT NULL DEFAULT false,
+                                                        show_final_predictions boolean NOT NULL DEFAULT false,
+                                                        updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+                                                        CONSTRAINT competition_visibility_settings_pkey PRIMARY KEY (id)
+);
