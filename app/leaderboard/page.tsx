@@ -18,6 +18,7 @@ export default async function LeaderboardPage() {
     error,
   });
 
+  // Sort rows for display order, but use database current_rank for rank numbers
   const rows = ((data ?? []) as LeaderboardDetailedRow[]).sort((left, right) => {
     if (right.total_points !== left.total_points) {
       return right.total_points - left.total_points;
@@ -27,6 +28,12 @@ export default async function LeaderboardPage() {
 
     return left.email.localeCompare(right.email);
   });
+
+  // For first-time runs where current_rank is null, compute ranks based on the sorted order
+  const rowsWithRanks = rows.map((row, index) => ({
+    ...row,
+    display_rank: row.current_rank ?? (index + 1),
+  }));
 
   return (
     <PageContainer
@@ -46,7 +53,7 @@ export default async function LeaderboardPage() {
           {error.message}
         </div>
       ) : (
-        <LeaderboardTable rows={rows} />
+        <LeaderboardTable rows={rowsWithRanks} />
       )}
     </PageContainer>
   );

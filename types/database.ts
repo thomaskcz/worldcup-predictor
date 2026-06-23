@@ -123,6 +123,7 @@ export type LeaderboardDetailedRow = {
   previous_rank: number | null;
   current_rank: number | null;
   rank_delta: number | null;
+  display_rank?: number; // Optional field for UI display (fallback when current_rank is null)
 };
 
 export type UserPredictionWithProfile = {

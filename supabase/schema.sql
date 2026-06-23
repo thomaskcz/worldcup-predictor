@@ -95,7 +95,14 @@ CREATE TABLE public.competition_leaderboard (
                                                 group_points integer NOT NULL DEFAULT 0 CHECK (group_points >= 0),
                                                 knockout_points integer NOT NULL DEFAULT 0 CHECK (knockout_points >= 0),
                                                 breakdown_json jsonb,
+                                                previous_rank integer,
+                                                current_rank integer,
+                                                rank_delta integer,
                                                 updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
                                                 CONSTRAINT competition_leaderboard_pkey PRIMARY KEY (id),
                                                 CONSTRAINT competition_leaderboard_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
+CREATE INDEX competition_leaderboard_user_id_idx ON public.competition_leaderboard(user_id);
+CREATE INDEX competition_leaderboard_total_points_idx ON public.competition_leaderboard(total_points);
+CREATE INDEX competition_leaderboard_current_rank_idx ON public.competition_leaderboard(current_rank);
+CREATE INDEX competition_leaderboard_rank_delta_idx ON public.competition_leaderboard(rank_delta);

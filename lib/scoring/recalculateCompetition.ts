@@ -122,44 +122,7 @@ export async function recalculateCompetitionScores(
       });
     }
 
-    // Always sort by total_points DESC, then by user_id ASC for deterministic ranking
-    leaderboardRows.sort((a, b) => {
-      if (b.total_points !== a.total_points) {
-        return b.total_points - a.total_points;
-      }
-      return a.user_id.localeCompare(b.user_id);
-    });
-
-    // Assign ranks and compute deltas
-    leaderboardRows.forEach((row, index) => {
-      const currentRank = index + 1;
-      const previousRank = oldRankMap.get(row.user_id) ?? null;
-      const rankDelta = previousRank !== null ? previousRank - currentRank : null;
-
-      row.previous_rank = previousRank;
-      row.current_rank = currentRank;
-      row.rank_delta = rankDelta;
-    });
-
-    // Debug logging
-    console.log("[RankComputation] Leaderboard sorted and ranked:", {
-      totalUsers: leaderboardRows.length,
-      processedMatches,
-      first5Users: leaderboardRows.slice(0, 5).map((r) => ({
-        user_id: r.user_id,
-        current_rank: r.current_rank,
-        previous_rank: r.previous_rank,
-        rank_delta: r.rank_delta,
-        total_points: r.total_points,
-      })),
-    });
-
-    // Add updated_at timestamp to all rows
-    leaderboardRows.forEach((row) => {
-      row.updated_at = now;
-    });
-
-    // Upsert into competition_leaderboard table
+    // Upsert competition scores first (this updates the base scores in competition_leaderboard)
     const { error: upsertError, count } = await supabase.from("competition_leaderboard").upsert(leaderboardRows, {
       onConflict: "user_id",
       count: "exact",
@@ -169,10 +132,68 @@ export async function recalculateCompetitionScores(
       throw new Error(`Failed to upsert leaderboard: ${upsertError.message}`);
     }
 
-    // Debug logging for DB update
-    console.log("[RankComputation] Database upsert result:", {
-      rowsAffected: count,
-      totalRowsAttempted: leaderboardRows.length,
+    // Now fetch the full leaderboard view to compute ranks based on the complete data
+    // This ensures ranking matches the UI display which uses leaderboard_detailed_view
+    const { data: fullLeaderboard, error: viewError } = await supabase
+      .from("leaderboard_detailed_view")
+      .select("user_id, total_points, exact_score_count, email");
+
+    if (viewError) {
+      throw new Error(`Failed to fetch leaderboard view for ranking: ${viewError.message}`);
+    }
+
+    // Sort using the same logic as the UI: total_points DESC, exact_score_count DESC, email ASC
+    const sortedLeaderboard = (fullLeaderboard ?? []).sort((a, b) => {
+      if (b.total_points !== a.total_points) {
+        return b.total_points - a.total_points;
+      } else if (b.exact_score_count !== a.exact_score_count) {
+        return b.exact_score_count - a.exact_score_count;
+      }
+      return a.email.localeCompare(b.email);
+    });
+
+    // Assign ranks and compute deltas based on the sorted view
+    const rankUpdates: Array<{ user_id: string; previous_rank: number | null; current_rank: number; rank_delta: number | null }> = [];
+    sortedLeaderboard.forEach((row, index) => {
+      const currentRank = index + 1;
+      const previousRank = oldRankMap.get(row.user_id) ?? null;
+      const rankDelta = previousRank !== null ? previousRank - currentRank : null;
+
+      rankUpdates.push({
+        user_id: row.user_id,
+        previous_rank: previousRank,
+        current_rank: currentRank,
+        rank_delta: rankDelta,
+      });
+    });
+
+    // Update competition_leaderboard with rank fields
+    for (const update of rankUpdates) {
+      const { error: updateError } = await supabase
+        .from("competition_leaderboard")
+        .update({
+          previous_rank: update.previous_rank,
+          current_rank: update.current_rank,
+          rank_delta: update.rank_delta,
+        })
+        .eq("user_id", update.user_id);
+
+      if (updateError) {
+        console.error(`[RankComputation] Failed to update rank for user ${update.user_id}:`, updateError);
+      }
+    }
+
+    // Debug logging
+    console.log("[RankComputation] Leaderboard sorted and ranked:", {
+      totalUsers: sortedLeaderboard.length,
+      processedMatches,
+      first5Users: sortedLeaderboard.slice(0, 5).map((r) => ({
+        user_id: r.user_id,
+        current_rank: rankUpdates.find(u => u.user_id === r.user_id)?.current_rank,
+        previous_rank: rankUpdates.find(u => u.user_id === r.user_id)?.previous_rank,
+        rank_delta: rankUpdates.find(u => u.user_id === r.user_id)?.rank_delta,
+        total_points: r.total_points,
+      })),
     });
 
     return {
