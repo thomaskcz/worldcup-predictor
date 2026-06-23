@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -8,7 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  Label,
+  LabelList,
 } from "recharts";
 import type { RankEvolutionRow } from "@/types/database";
 
@@ -16,10 +16,59 @@ interface ScoreEvolutionChartProps {
   data: RankEvolutionRow[];
 }
 
+// Custom label renderer to show label only at the last data point
+interface CustomLabelProps {
+  x?: number;
+  y?: number;
+  value?: any;
+  index?: number;
+  nickname?: string;
+  color?: string;
+  isHovered?: boolean;
+  isDimmed?: boolean;
+  payload?: any;
+  dataLength?: number;
+}
+
+function CustomLabel({
+  x,
+  y,
+  value,
+  index,
+  nickname,
+  color,
+  isHovered,
+  isDimmed,
+  payload,
+  dataLength,
+}: CustomLabelProps) {
+  // Only show label at the last data point
+  if (dataLength === undefined || index !== dataLength - 1) return null;
+
+  return (
+    <text
+      x={x ? x + 10 : 0}
+      y={y}
+      fill={color}
+      fontSize={12}
+      fontWeight={500}
+      textAnchor="start"
+      dominantBaseline="middle"
+      opacity={isDimmed === true ? 0.2 : 1}
+      style={{
+        filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.3))",
+      }}
+    >
+      {nickname}
+    </text>
+  );
+}
+
 export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
   const [startMatchIndex, setStartMatchIndex] = useState<number>(0);
   const [endMatchIndex, setEndMatchIndex] = useState<number>(-1); // -1 means last match
+  const [yAxisDomain, setYAxisDomain] = useState<[number, number]>([1, 1]);
 
   // Memoize data transformation
   const { allTimestamps, fullChartData, users, colors, matchOptions } = useMemo(() => {
@@ -107,26 +156,28 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
     return fullChartData.slice(startIndex, endIndex + 1);
   }, [fullChartData, startMatchIndex, endMatchIndex]);
 
-  // Custom label component for user names at end of lines
-  const CustomLineLabel = (props: any) => {
-    const { x, y, value, color } = props;
-    return (
-      <text
-        x={x}
-        y={y}
-        fill={color}
-        fontSize={12}
-        fontWeight={500}
-        textAnchor="start"
-        dominantBaseline="middle"
-        style={{
-          filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.3))",
-        }}
-      >
-        {value}
-      </text>
-    );
-  };
+  // Calculate Y-axis domain from chart data
+  useEffect(() => {
+    if (chartData.length === 0) return;
+
+    let minRank = Infinity;
+    let maxRank = -Infinity;
+
+    chartData.forEach((point) => {
+      users.forEach((user) => {
+        const rank = point[user.nickname] as number;
+        if (rank > 0) {
+          minRank = Math.min(minRank, rank);
+          maxRank = Math.max(maxRank, rank);
+        }
+      });
+    });
+
+    if (minRank === Infinity) minRank = 1;
+    if (maxRank === -Infinity) maxRank = 1;
+
+    setYAxisDomain([minRank, maxRank]);
+  }, [chartData, users]);
 
   return (
     <div className="relative w-full">
@@ -184,11 +235,11 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
             <YAxis
               tick={{ fontSize: 12 }}
               reversed={true}
-              domain={[1, "auto"]}
+              domain={[yAxisDomain[0], yAxisDomain[1]]}
             />
             {users.map((user, index) => {
               const isHovered = hoveredLine === user.nickname;
-              const isDimmed = hoveredLine && !isHovered;
+              const isDimmed = Boolean(hoveredLine && !isHovered);
 
               return (
                 <Line
@@ -203,9 +254,16 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
                   onMouseEnter={() => setHoveredLine(user.nickname)}
                   onMouseLeave={() => setHoveredLine(null)}
                 >
-                  <Label
-                    position="right"
-                    content={<CustomLineLabel value={user.nickname} color={colors[index % colors.length]} />}
+                  <LabelList
+                    content={
+                      <CustomLabel
+                        nickname={user.nickname}
+                        color={colors[index % colors.length]}
+                        isHovered={isHovered}
+                        isDimmed={isDimmed}
+                        dataLength={chartData.length}
+                      />
+                    }
                   />
                 </Line>
               );
