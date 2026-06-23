@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -8,7 +8,6 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  Tooltip,
   Label,
 } from "recharts";
 import type { RankEvolutionRow } from "@/types/database";
@@ -21,10 +20,9 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
   const [hoveredLine, setHoveredLine] = useState<string | null>(null);
   const [startMatchIndex, setStartMatchIndex] = useState<number>(0);
   const [endMatchIndex, setEndMatchIndex] = useState<number>(-1); // -1 means last match
-  const chartRef = useRef<HTMLDivElement>(null);
 
   // Memoize data transformation
-  const { userMap, allTimestamps, fullChartData, users, colors } = useMemo(() => {
+  const { allTimestamps, fullChartData, users, colors } = useMemo(() => {
     // Group by user and create series
     const userMap = new Map<string, RankEvolutionRow[]>();
 
@@ -79,7 +77,7 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
       nickname: rows[0]?.nickname || rows[0]?.email.split("@")[0] || "Unknown",
     }));
 
-    return { userMap, allTimestamps, fullChartData, users, colors };
+    return { allTimestamps, fullChartData, users, colors };
   }, [data]);
 
   // Filter data based on match range
@@ -93,48 +91,6 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
 
     return fullChartData.slice(startIndex, endIndex + 1);
   }, [fullChartData, startMatchIndex, endMatchIndex]);
-
-  // Get the latest rank for the hovered line
-  const getHoveredLineLatestRank = () => {
-    if (!hoveredLine) return null;
-    const userRows = userMap.get(
-      users.find((u) => u.nickname === hoveredLine)?.userId || ""
-    );
-    if (!userRows || userRows.length === 0) return null;
-    const latest = userRows[userRows.length - 1];
-    return {
-      nickname: hoveredLine,
-      rank: latest.rank,
-      date: new Date(latest.start_time).toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-      }),
-    };
-  };
-
-  const hoveredLineInfo = getHoveredLineLatestRank();
-
-  // Custom tooltip component
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || payload.length === 0) return null;
-
-    return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-        <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {payload[0].payload.timestamp}
-        </p>
-        {payload.map((entry: any, index: number) => (
-          <p
-            key={index}
-            className="text-sm"
-            style={{ color: entry.color }}
-          >
-            {entry.name}: #{entry.value}
-          </p>
-        ))}
-      </div>
-    );
-  };
 
   // Custom label component for user names at end of lines
   const CustomLineLabel = (props: any) => {
@@ -168,21 +124,6 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
 
   return (
     <div className="relative w-full">
-      {/* Floating tooltip - positioned absolutely to avoid layout shift */}
-      {hoveredLineInfo && (
-        <div className="absolute left-0 top-0 z-10 m-4 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
-          <p className="mb-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            {hoveredLineInfo.nickname}
-          </p>
-          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-            #{hoveredLineInfo.rank}
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Dernier match: {hoveredLineInfo.date}
-          </p>
-        </div>
-      )}
-
       {/* Match range filters */}
       <div className="mb-4 flex gap-4">
         <div className="flex items-center gap-2">
@@ -221,7 +162,6 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
       </div>
 
       <div
-        ref={chartRef}
         className="relative"
         style={{ width: "100%", height: "500px" }}
       >
@@ -240,7 +180,6 @@ export function ScoreEvolutionChart({ data }: ScoreEvolutionChartProps) {
               reversed={true}
               domain={[1, "auto"]}
             />
-            <Tooltip content={<CustomTooltip />} />
             {users.map((user, index) => {
               const isHovered = hoveredLine === user.nickname;
               const isDimmed = hoveredLine && !isHovered;
