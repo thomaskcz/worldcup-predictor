@@ -1,1465 +1,1328 @@
 # Database Audit Report
 
-**Date:** 2026-06-24
-**Project:** worldcup-predictor
-**Scope:** Complete database schema analysis
+**Date**: 2026-06-24
+**Project**: worldcup-predictor
+**Scope**: Complete database schema and security audit
+**Base de données**: Supabase PostgreSQL
 
 ---
 
 ## 1. Executive Summary
 
-### Overall Quality Assessment
-The database exhibits a **moderate level of quality** with several critical issues that need attention. The schema follows a basic relational pattern but suffers from:
+### État global de la base
 
-- **Weak referential integrity** (text fields instead of foreign keys)
-- **Significant data redundancy** (multiple cached/calculated tables)
-- **Inconsistent security model** (missing RLS on critical tables)
-- **Logic duplication** between SQL and TypeScript
-- **Mixed responsibilities** (business logic scattered across triggers, functions, and application code)
+La base de données du projet worldcup-predictor est globalement **bien structurée** avec une séparation claire des responsabilités entre :
+- Tables de données métier (matches, predictions, user_scores)
+- Tables de configuration (rules, competition_visibility_settings)
+- Tables de cache/agrégation (competition_leaderboard, user_scores)
+- Vues pour l'affichage (leaderboard_detailed_view, user_prediction_tracking)
 
-### Critical Issues (P0)
-1. **Missing RLS on `competition_leaderboard`** - No security policies defined
-2. **Text-based team references** - `matches.home_team`/`away_team` are text, not FKs
-3. **Singleton table design flaw** - `competition_visibility_settings` has no user_id
-4. **Duplicate function definition** - `rls_auto_enable` defined twice with differences
-5. **Calculated data without consistency guarantees** - `user_scores` and `competition_leaderboard` can desync
+### Points forts
 
-### Major Issues (P1)
-1. **Inconsistent enum usage** - `competition_results.stage` uses text instead of `match_stage` enum
-2. **Obsolete view still present** - `leaderboard_view` exists but is not used
-3. **Derived columns stored** - `predicted_winner` and `matches.winner` can be computed
-4. **Complex view logic** - `user_prediction_tracking` has fragile CTE logic
-5. **Missing constraints** - No CHECK constraints on score ranges in leaderboard tables
+✅ **RLS activé sur toutes les tables** avec des policies bien définies
+✅ **Contraintes d'intégrité** présentes (UNIQUE sur external_id, CHECK sur points)
+✅ **Fonctions utilitaires robustes** (is_admin, validate_prediction)
+✅ **Triggers automatiques** pour updated_at et validation
+✅ **Indexation cohérente** pour les requêtes courantes
+✅ **Event trigger rls_auto_enable** pour sécurité par défaut
 
-### Quick Wins (P2)
-1. Add missing NOT NULL constraints
-2. Remove duplicate indexes
-3. Standardize timestamp conventions
-4. Add missing indexes for common query patterns
-5. Consolidate duplicate function definitions
+### Principaux problèmes identifiés
 
-### Sensitive Areas Requiring Caution
-- **Score recalculation logic** - Duplicated between TypeScript and views
-- **Leaderboard computation** - Frontend sorting vs view ordering inconsistency
-- **Policy conflicts** - Multiple SELECT policies on same tables
-- **Trigger-based validation** - Business logic in triggers vs application layer
+🔴 **P0 - Critiques**:
+- **DB-001**: `matches.home_team`/`away_team` sont des text sans FK vers `teams` (duplication de données)
+- **DB-002**: `competition_results.stage` est un text avec CHECK, pas d'enum (incohérence avec `matches.stage`)
+- **DB-003**: `competition_results.group_name` sans validation (incohérence possible avec `teams.group_name`)
 
----
+🟡 **P1 - Importants**:
+- **DB-004**: Vue `leaderboard_view` obsolète et non utilisée (confusion avec `leaderboard_detailed_view`)
+- **DB-005**: `competition_predictions_with_users` expose les emails (risque de fuite de données)
+- **DB-006**: `user_prediction_tracking` utilise un CROSS JOIN (potentiellement très lent)
+- **DB-007**: `breakdown_json` et `predictions_json` sans validation de structure
 
-## 2. Overview of Current Database Design
+🟢 **P2 - Améliorations**:
+- **DB-008**: `teams.flag_url` toujours NULL (colonne inutilisée)
+- **DB-009**: Manque d'index sur certaines colonnes fréquentes
+- **DB-010**: Doublon de policy SELECT sur certaines tables
 
-### Core Entities
+### Niveau de confiance sur la cohérence actuelle
 
-#### Source of Truth Tables
-1. **`users_profiles`** - User profile data (extends auth.users)
-2. **`matches`** - Match information and results
-3. **`teams`** - Team metadata
-4. **`predictions`** - User match predictions
-5. **`competition_predictions`** - User competition-wide predictions
-6. **`competition_results`** - Official competition results
-7. **`rules`** - Scoring rules configuration
-
-#### Calculated/Derived Tables
-1. **`user_scores`** - Computed scores per user per match (cache)
-2. **`competition_leaderboard`** - Computed competition scores (cache)
-3. **`competition_visibility_settings`** - Singleton settings for UI visibility
-
-#### Views
-1. **`leaderboard_detailed_view`** - Rich leaderboard with statistics (ACTIVE)
-2. **`leaderboard_view`** - Simple leaderboard (OBSOLETE per AGENTS.md)
-3. **`competition_predictions_with_users`** - Competition predictions with user info
-4. **`user_prediction_tracking`** - Complex prediction continuity metrics
-
-### Business Flow Covered
-
-1. **User Management**: `auth.users` → `users_profiles` (via trigger)
-2. **Match Flow**: `teams` → `matches` → `predictions` → `user_scores` (calculated)
-3. **Competition Flow**: `competition_predictions` → `competition_results` → `competition_leaderboard` (calculated)
-4. **Display**: Views aggregate data for leaderboard and tracking UIs
-
-### Data Architecture Pattern
-The database uses a **hybrid cache pattern**:
-- Core data stored in source tables
-- Derived scores stored in cache tables (`user_scores`, `competition_leaderboard`)
-- Recalculation triggered manually via API endpoints
-- Views provide read-optimized aggregations
-
-**Weakness**: No automatic cache invalidation or consistency guarantees between source and derived data.
+**Moyen** - La base est fonctionnelle mais présente des incohérences de design qui pourraient causer des problèmes à long terme, notamment :
+- Duplication de noms d'équipes en text vs références teams
+- Incohérence de types entre tables similaires
+- Vues potentiellement obsolètes ou dangereuses
 
 ---
 
-## 3. Table-by-Table Analysis
+## 2. Cartographie de la base
 
-### 3.1 `users_profiles`
+### Tables principales
 
-**Role**: Extension of Supabase auth.users with application-specific user data
+| Table | Rôle | Clé primaire | Relations principales |
+|-------|------|--------------|----------------------|
+| `users_profiles` | Profils utilisateurs | `id` (uuid) | FK → `auth.users(id)` |
+| `matches` | Matchs de la coupe du monde | `id` (uuid) | Utilisé par `predictions`, `user_scores` |
+| `predictions` | Prédictions par match | `id` (uuid) | FK → `auth.users(id)`, `matches(id)` |
+| `user_scores` | Scores calculés par match | `id` (uuid) | FK → `auth.users(id)`, `matches(id)` |
+| `teams` | Équipes participantes | `id` (uuid) | Référencé par `competition_results` |
+| `rules` | Règles de scoring | `id` (uuid) | Utilisé par le calcul de scores |
+| `competition_predictions` | Prédictions bracket/compétition | `id` (uuid) | FK → `auth.users(id)`, UNIQUE sur `user_id` |
+| `competition_results` | Résultats officiels tournoi | `id` (uuid) | FK → `teams(id)` |
+| `competition_leaderboard` | Classement agrégé compétition | `id` (uuid) | FK → `auth.users(id)`, UNIQUE sur `user_id` |
+| `competition_visibility_settings` | Settings visibilité UI (singleton) | `id` (uuid) | Singleton global |
 
-**Issues**:
-- ✅ Well-designed with proper FK to `auth.users`
-- ✅ Unique constraint on `nickname` prevents duplicates
-- ⚠️ `email` stored here but also in `auth.users` - potential redundancy
-- ⚠️ No constraint on `nickname` format (length, characters)
-- ⚠️ `is_admin` flag - no audit trail for admin changes
+### Vues principales
 
-**Recommendations**:
-- Consider removing `email` from this table (already in auth.users)
-- Add CHECK constraint on `nickname` format if applicable
-- Add audit table for admin privilege changes if security is critical
+| Vue | Rôle | Utilisation |
+|-----|------|-------------|
+| `leaderboard_detailed_view` | Classement détaillé avec stats | ✅ Utilisé par le front (`app/leaderboard/page.tsx`) |
+| `leaderboard_view` | Classement simple (obsolète) | ❌ Non utilisé (remplacé par detailed_view) |
+| `competition_predictions_with_users` | Prédictions compétition + infos users | ✅ Utilisé par API (`app/api/competition-predictions/others/route.ts`) |
+| `user_prediction_tracking` | Tracking continuité prédictions | ✅ Utilisé par admin (`components/admin/UserPredictionTracking.tsx`) |
 
----
+### Fonctions / Triggers importants
 
-### 3.2 `matches`
+| Fonction | Rôle | Sécurité |
+|----------|------|----------|
+| `handle_new_user()` | Crée automatiquement le profil utilisateur | SECURITY DEFINER |
+| `is_admin()` | Vérifie si l'utilisateur est admin | SECURITY DEFINER |
+| `set_updated_at()` | Met à jour `updated_at` automatiquement | SECURITY INVOKER |
+| `validate_prediction()` | Valide les prédictions avant insert/update | SECURITY INVOKER |
+| `rls_auto_enable()` | Active RLS automatiquement sur nouvelles tables | SECURITY DEFINER + search_path pg_catalog |
 
-**Role**: Stores match information, schedules, and results
+### Relations structurantes du système
 
-**Critical Issues**:
-- 🔴 **`home_team` and `away_team` are TEXT fields, not FKs to `teams`**
-  - Impact: No referential integrity, can reference non-existent teams
-  - Risk: Typos, inconsistent team names, orphaned data
-  - Should be: `home_team_id uuid REFERENCES teams(id)`
+```
+auth.users (Supabase Auth)
+    ↓ (1:1)
+users_profiles
+    ↓ (1:N)
+    ├── predictions → matches
+    ├── user_scores → matches
+    ├── competition_predictions (1:1)
+    └── competition_leaderboard (1:1)
 
-- 🔴 **`winner` is TEXT, not enum**
-  - Uses text 'home'/'away' instead of `knockout_winner_pick` enum
-  - Inconsistent with `predictions.predicted_winner` which uses the enum
+matches
+    ├── predictions (1:N)
+    └── user_scores (1:N)
 
-**Other Issues**:
-- ⚠️ `external_id` has no UNIQUE constraint - potential duplicates
-- ⚠️ `finished` flag can desync from actual score presence
-- ⚠️ No constraint ensuring `home_score`/`away_score` are non-negative
-- ⚠️ `stage` uses `match_stage` enum (correct) but inconsistent with `competition_results.stage`
+teams
+    └── competition_results (1:N)
 
-**Derived Columns**:
-- `winner` can be computed from `home_score`/`away_score` - redundant storage
+rules
+    └── Utilisé par calcul de scores (relation implicite)
 
-**Recommendations**:
-- **P0**: Convert `home_team`/`away_team` to FKs to `teams`
-- **P0**: Add UNIQUE constraint on `external_id`
-- **P1**: Use `knockout_winner_pick` enum for `winner`
-- **P1**: Consider removing `winner` (compute on read)
-- **P2**: Add CHECK constraints for score ranges
-
----
-
-### 3.3 `predictions`
-
-**Role**: Stores user predictions for individual matches
-
-**Issues**:
-- ✅ Proper FKs to `auth.users` and `matches`
-- ✅ Unique constraint on `(user_id, match_id)` via index
-- ⚠️ `predicted_winner` can be derived from score comparison
-- ⚠️ `stage` column exists but is redundant (can join to `matches.stage`)
-
-**Validation**:
-- Trigger `validate_prediction` enforces business rules:
-  - Cannot predict finished matches
-  - Cannot predict after deadline
-  - Knockout stages require `predicted_winner` for draws
-  - Group stages must not have `predicted_winner`
-
-**Recommendations**:
-- **P2**: Remove `stage` column (derive from `matches`)
-- **P2**: Consider removing `predicted_winner` (compute on read)
-- **P3**: Move validation logic to application layer for better testability
-
----
-
-### 3.4 `rules`
-
-**Role**: Stores scoring rules configuration
-
-**Issues**:
-- ✅ JSONB storage flexible for rules
-- ✅ `is_active` flag allows multiple rules with one active
-- ⚠️ No constraint ensuring exactly one active rule
-- ⚠️ No versioning/history of rule changes
-- ⚠️ No migration strategy when rules structure changes
-
-**Usage**:
-- Read by `lib/recalculateScores.ts` to compute match scores
-- NOT used for competition scoring (separate logic in TypeScript)
-
-**Recommendations**:
-- **P1**: Add constraint to ensure exactly one active rule
-- **P2**: Add versioning/history table for rule changes
-- **P2**: Add migration strategy documentation
-
----
-
-### 3.5 `user_scores`
-
-**Role**: Cache of computed scores per user per match
-
-**Critical Issues**:
-- 🔴 **Cache table without consistency guarantees**
-  - Can desync from `predictions` + `matches` + `rules`
-  - No automatic invalidation
-  - Manual recalculation required via API
-
-**Issues**:
-- ⚠️ `stage` column redundant (can join to `matches`)
-- ⚠️ `breakdown_json` structure not validated
-- ⚠️ No constraint ensuring `score` matches breakdown sum
-- ⚠️ `computed_at` doesn't track which rules version was used
-
-**Recalculation**:
-- Done by `lib/recalculateScores.ts`
-- Skips matches if `computed_at >= match.updated_at` (optimization)
-- Upserts with conflict on `(user_id, match_id)`
-
-**Recommendations**:
-- **P0**: Add `rules_version_id` to track which rules produced the score
-- **P1**: Consider computed column or materialized view instead of cache table
-- **P2**: Remove `stage` column (derive from `matches`)
-- **P2**: Add constraint validating breakdown structure
-
----
-
-### 3.6 `teams`
-
-**Role**: Team metadata and group assignments
-
-**Issues**:
-- ✅ Simple, well-designed table
-- ✅ UNIQUE constraint on `fifa_code`
-- ⚠️ `group_name` is TEXT, no enum or FK to groups table
-- ⚠️ No constraint on valid group names (A-H, etc.)
-- ⚠️ `flag_url` not validated
-
-**Recommendations**:
-- **P2**: Add CHECK constraint on `group_name` format
-- **P2**: Add CHECK constraint on `flag_url` format if applicable
-
----
-
-### 3.7 `competition_predictions`
-
-**Role**: Stores user predictions for competition-wide outcomes
-
-**Issues**:
-- ✅ UNIQUE constraint on `user_id` (one prediction per user)
-- ✅ JSONB flexible for prediction structure
-- ⚠️ `predictions_json` structure not validated by database
-- ⚠️ No constraint ensuring valid team references in JSON
-- ⚠️ No version history for prediction changes
-
-**Structure** (from TypeScript):
-```typescript
-{
-  groups: Record<string, { first: string; second: string }>,
-  semi_finalists: string[],
-  finalists: string[]
-}
+competition_visibility_settings
+    └── Singleton global
 ```
 
-**Recommendations**:
-- **P1**: Add CHECK constraint or trigger to validate JSON structure
-- **P1**: Add foreign key validation for team IDs in JSON
-- **P2**: Add version history table
+---
+
+## 3. Problèmes identifiés
+
+### DB-001: matches.home_team / away_team sont des text sans FK vers teams
+
+**Gravité**: P0
+**Zone**: Schema / Data model / Foreign keys
+
+**Description**:
+Les colonnes `matches.home_team` et `matches.away_team` sont de type `text` et stockent les noms des équipes directement. Il n'y a pas de foreign key vers la table `teams`. Les équipes sont insérées dans `teams` (avec IDs UUID) mais les matchs utilisent les noms en texte.
+
+**Pourquoi c'est un problème**:
+- **Duplication de données**: Le même nom d'équipe est stocké plusieurs fois (dans teams et dans chaque match)
+- **Incohérence possible**: Si un nom d'équipe change dans `teams`, il faut mettre à jour tous les matchs
+- **Pas de validation**: Aucune garantie que `home_team`/`away_team` correspondent à des équipes existantes
+- **Risque d'erreurs**: Fautes de frappe possibles lors de l'insertion des matchs
+- **Jointures inefficaces**: Les jointures entre matches et teams doivent se faire sur des text, pas des UUID
+
+**Impact concret possible**:
+- Matchs avec des noms d'équipes qui n'existent pas dans `teams`
+- Différentes variations du même nom d'équipe (ex: "Brésil" vs "Brazil")
+- Impossibilité de garantir l'intégrité référentielle
+- Calculs de scores incorrects si les noms ne correspondent pas
+
+**Recommandation de correction**:
+1. Ajouter des colonnes `home_team_id` et `away_team_id` (UUID) avec FK vers `teams(id)`
+2. Migrer les données existantes en faisant un mapping nom → ID
+3. Marquer les colonnes `home_team`/`away_team` comme obsolètes ou les supprimer après migration
+4. Mettre à jour toutes les requêtes, vues et fonctions qui utilisent ces colonnes
+5. Mettre à jour le front pour utiliser les IDs au lieu des noms
+
+**Type de correction**: Nécessite une migration prudente avec backfill de données
 
 ---
 
-### 3.8 `competition_results`
+### DB-002: competition_results.stage est un text avec CHECK, pas d'enum
 
-**Role**: Official competition results (group standings, knockout positions)
+**Gravité**: P0
+**Zone**: Schema / Data consistency / Enums
 
-**Critical Issues**:
-- 🔴 **`stage` uses TEXT instead of `match_stage` enum**
-  - Values: 'groups', 'semi_final', 'final'
-  - Inconsistent with `matches.stage` which uses enum
-  - No database-level validation of valid values
+**Description**:
+La table `competition_results` utilise un type `text` pour la colonne `stage` avec une contrainte CHECK qui limite les valeurs à `['groups', 'semi_final', 'final']`. Pourtant, la table `matches` utilise l'enum `match_stage` qui a des valeurs plus détaillées (incluant `round_of_16`, `round_of_32`, `quarter_final`, `third_place`).
 
-**Issues**:
-- ⚠️ `position` has CHECK `>= 1` but no upper bound
-- ⚠️ No constraint ensuring unique (stage, group_name, position) combinations
-- ⚠️ `team_id` FK exists but no constraint on team participation in stage
-- ⚠️ `updated_at` only, no `created_at`
+**Pourquoi c'est un problème**:
+- **Incohérence de types**: Deux tables représentant des concepts similaires utilisent des types différents
+- **Perte d'information**: `competition_results` ne peut pas représenter les rounds de 16, 32, quarts de finale, 3ème place
+- **Maintenance difficile**: Si l'enum `match_stage` change, la contrainte CHECK doit être mise à jour manuellement
+- **Pas de type safety**: Le text est plus sujet aux erreurs qu'un enum
 
-**Recommendations**:
-- **P0**: Convert `stage` to use `match_stage` enum (or create new enum)
-- **P1**: Add UNIQUE constraint on `(stage, group_name, position)` where applicable
-- **P2**: Add `created_at` timestamp
+**Impact concret possible**:
+- Impossible de stocker les résultats des rounds de 16/32/quarts dans `competition_results`
+- Erreurs si on essaie d'insérer une valeur non valide
+- Confusion pour les développeurs sur quel type utiliser
 
----
+**Recommandation de correction**:
+1. Créer un nouvel enum `competition_stage` ou réutiliser `match_stage` (si compatible)
+2. Modifier `competition_results.stage` pour utiliser l'enum
+3. Mettre à jour la contrainte CHECK ou la supprimer (l'enum assure déjà la validation)
+4. Vérifier que toutes les valeurs existantes sont compatibles avec le nouvel enum
+5. Mettre à jour le code qui utilise cette colonne
 
-### 3.9 `competition_leaderboard`
-
-**Role**: Cache of computed competition scores per user
-
-**Critical Issues**:
-- 🔴 **NO RLS POLICIES DEFINED**
-  - Table is not RLS-enabled
-  - Anyone with database access can read/modify
-  - Major security vulnerability
-
-- 🔴 **Cache table without consistency guarantees**
-  - Can desync from `competition_predictions` + `competition_results`
-  - No automatic invalidation
-  - Manual recalculation required
-
-**Issues**:
-- ⚠️ `breakdown_json` structure not validated
-- ⚠️ No constraint ensuring `total_points = group_points + knockout_points`
-- ⚠️ No tracking of which results version produced the score
-- ⚠️ `updated_at` only, no `created_at`
-
-**Recalculation**:
-- Done by `lib/scoring/recalculateCompetition.ts`
-- Upserts with conflict on `user_id`
-- Uses `simpleScoring.ts` for actual calculation logic
-
-**Recommendations**:
-- **P0**: ENABLE RLS and define appropriate policies
-- **P0**: Add CHECK constraint: `total_points = group_points + knockout_points`
-- **P1**: Add `results_version_id` to track which results produced the score
-- **P2**: Add `created_at` timestamp
-- **P2**: Consider computed column or materialized view instead of cache table
+**Type de correction**: Safe avec migration de type (si compatible) ou nécessite une décision produit
 
 ---
 
-### 3.10 `competition_visibility_settings`
+### DB-003: competition_results.group_name sans validation
 
-**Role**: Singleton settings for controlling visibility of competition predictions
+**Gravité**: P0
+**Zone**: Schema / Data consistency / Foreign keys
 
-**Critical Design Flaw**:
-- 🔴 **No `user_id` column**
-  - UNIQUE constraint on `id` makes it a singleton table
-  - But settings should likely be per-admin or configurable
-  - Update policy uses `is_admin()` but no row-level context
-  - Confusing design: is this global or per-user?
+**Description**:
+La colonne `competition_results.group_name` est de type `text` sans aucune validation ni foreign key vers `teams.group_name`. Il est possible d'insérer un nom de groupe qui n'existe pas dans la table `teams`.
 
-**Issues**:
-- ⚠️ Three boolean flags for different stages
-- ⚠️ No `created_at` timestamp
-- ⚠️ Update policy allows any admin to modify (no audit trail)
+**Pourquoi c'est un problème**:
+- **Pas de validation**: Aucune garantie que `group_name` correspond à un groupe réel
+- **Incohérence possible**: On pourrait avoir "group X" dans `competition_results` mais aucune équipe dans `teams` avec ce groupe
+- **Jointures non vérifiées**: Les jointures entre `competition_results` et `teams` sur `group_name` ne sont pas garanties
 
-**Recommendations**:
-- **P0**: Clarify design - should this be:
-  - Option A: Global singleton (current, but document it)
-  - Option B: Per-user settings (add `user_id`)
-  - Option C: Per-admin settings (add `user_id` with admin constraint)
-- **P1**: Add audit trail for changes
-- **P2**: Add `created_at` timestamp
+**Impact concret possible**:
+- Résultats de groupe pour un groupe qui n'existe pas
+- Erreurs de calcul si les groupes ne correspondent pas
+- Données incohérentes entre `competition_results` et `teams`
 
----
+**Recommandation de correction**:
+1. Ajouter une contrainte CHECK sur `group_name` pour limiter aux valeurs valides (A-L)
+2. Ou ajouter une foreign key vers une table de référence des groupes
+3. Ou utiliser un enum pour les noms de groupes
+4. Vérifier que toutes les valeurs existantes sont valides
 
-## 4. Enums Analysis
-
-### 4.1 `match_stage`
-
-**Definition**:
-```sql
-CREATE TYPE public.match_stage AS ENUM (
-    'group',
-    'round_of_16',
-    'round_of_32',
-    'quarter_final',
-    'semi_final',
-    'third_place',
-    'final'
-);
-```
-
-**Usage**:
-- ✅ Used in `matches.stage` (correct)
-- ❌ NOT used in `competition_results.stage` (uses TEXT instead)
-- ❌ NOT used in `user_scores.stage` (uses USER-DEFINED but type not enforced in schema)
-
-**Issues**:
-- Contains both `round_of_16` and `round_of_32` - World Cup typically uses one or the other
-- TypeScript types match the enum (good)
-
-**Recommendations**:
-- **P0**: Use this enum in `competition_results.stage`
-- **P1**: Remove unused stage value based on actual tournament format
-- **P2**: Add COMMENT to document each stage
+**Type de correction**: Safe (ajout de contrainte CHECK ou enum)
 
 ---
 
-### 4.2 `knockout_winner_pick`
+### DB-004: Vue leaderboard_view obsolète et non utilisée
 
-**Definition**:
-```sql
-CREATE TYPE public.knockout_winner_pick AS ENUM (
-    'home',
-    'away'
-);
-```
+**Gravité**: P1
+**Zone**: Views / Maintenabilité
 
-**Usage**:
-- ✅ Used in `predictions.predicted_winner` (correct)
-- ❌ NOT used in `matches.winner` (uses TEXT with CHECK instead)
+**Description**:
+La vue `leaderboard_view` existe mais n'est pas utilisée par le front. Le front utilise exclusivement `leaderboard_detailed_view` (vérifié dans `app/leaderboard/page.tsx`). `leaderboard_view` est une version simplifiée sans les statistiques détaillées.
 
-**Issues**:
-- Simple enum, well-designed
-- Inconsistent usage between predictions and results
+**Pourquoi c'est un problème**:
+- **Confusion**: Les développeurs ne savent pas quelle vue utiliser
+- **Maintenance inutile**: Deux vues similaires à maintenir
+- **Risque d'erreurs**: Si quelqu'un utilise `leaderboard_view` par erreur, il n'aura pas les stats détaillées
+- **Code mort**: La vue consomme des ressources sans être utilisée
 
-**Recommendations**:
-- **P1**: Use this enum in `matches.winner` instead of TEXT + CHECK
+**Impact concret possible**:
+- Développeur utilise la mauvaise vue et manque de fonctionnalités
+- Temps perdu à maintenir une vue inutile
+- Confusion sur la source de vérité pour le leaderboard
 
----
+**Recommandation de correction**:
+1. Supprimer `leaderboard_view` si elle n'est vraiment pas utilisée
+2. Ou documenter clairement son utilité si elle a un cas d'usage spécifique
+3. Vérifier dans tout le codebase qu'elle n'est pas utilisée ailleurs
 
-## 5. Functions Analysis
-
-### 5.1 `handle_new_user()`
-
-**Role**: Trigger function to create user profile on auth.user creation
-
-**Analysis**:
-- ✅ Simple, clear purpose
-- ✅ Uses ON CONFLICT DO UPDATE for idempotency
-- ✅ Updates email on conflict (good for email changes)
-- ⚠️ SECURITY DEFINER - necessary but should be reviewed
-- ⚠️ No handling of other profile fields (nickname, is_admin)
-
-**Recommendations**:
-- **P2**: Add COMMENT documenting purpose
-- **P3**: Consider adding default values for other fields if needed
+**Type de correction**: Safe (suppression de vue non utilisée)
 
 ---
 
-### 5.2 `is_admin()`
+### DB-005: competition_predictions_with_users expose les emails
 
-**Role**: Returns true if current user is admin
+**Gravité**: P1
+**Zone**: Views / Security / Data privacy
 
-**Analysis**:
-- ✅ Simple, clear purpose
-- ✅ Uses COALESCE for null safety
-- ✅ SECURITY DEFINER necessary for auth.uid() access
-- ⚠️ No caching - queries users_profiles on every call
-- ⚠️ Used in multiple policies - potential performance impact
+**Description**:
+La vue `competition_predictions_with_users` expose la colonne `up.email` depuis `users_profiles`. Cette vue est utilisée par l'API `app/api/competition-predictions/others/route.ts` qui est accessible aux utilisateurs authentifiés. Cela signifie que n'importe quel utilisateur authentifié peut voir les emails des autres utilisateurs.
 
-**Recommendations**:
-- **P2**: Add COMMENT documenting usage
-- **P3**: Consider caching if performance issues arise
+**Pourquoi c'est un problème**:
+- **Fuite de données personnelles**: Les emails sont des données sensibles (RGPD)
+- **Pas de politique d'accès**: La vue ne filtre pas par admin
+- **Risque de scraping**: Un utilisateur pourrait scraper tous les emails
+- **Violation de confidentialité**: Les utilisateurs ne s'attendent pas à ce que leur email soit visible
 
----
+**Impact concret possible**:
+- Un utilisateur malveillant récupère tous les emails des participants
+- Problème de conformité RGPD
+- Plaintes d'utilisateurs concernant la confidentialité
 
-### 5.3 `rls_auto_enable()` (CRITICAL - DUPLICATE)
+**Recommandation de correction**:
+1. Retirer `up.email` de la vue `competition_predictions_with_users`
+2. Garder uniquement `up.nickname` pour l'affichage
+3. Si l'email est nécessaire pour l'admin, créer une vue admin-only
+4. Vérifier les policies RLS sur cette vue
 
-**Role**: Event trigger to automatically enable RLS on new tables
-
-**Analysis**:
-- 🔴 **DEFINED TWICE** with slight differences:
-  - Version 1 in `functions.sql` (lines 43-83)
-  - Version 2 in `triggers.sql` (lines 58-97)
-  - Version 2 has `SET search_path TO 'pg_catalog'` (more secure)
-  - Both create the same function name - last one wins
-
-- ✅ Good security practice
-- ✅ Exception handling with logging
-- ⚠️ Complex condition checking schema names
-- ⚠️ Version 2 has redundant condition: `schema_name IN ('public')` then `NOT IN ('pg_catalog'...)`
-
-**Recommendations**:
-- **P0**: Remove duplicate definition - keep only version 2 (more secure)
-- **P1**: Simplify condition logic
-- **P2**: Add COMMENT documenting purpose
+**Type de correction**: Safe (modification de vue)
 
 ---
 
-### 5.4 `set_updated_at()`
+### DB-006: user_prediction_tracking utilise un CROSS JOIN
 
-**Role**: Trigger function to auto-update `updated_at` timestamp
+**Gravité**: P1
+**Zone**: Views / Performance
 
-**Analysis**:
-- ✅ Simple, clear purpose
-- ✅ SECURITY INVOKER (appropriate - no special privileges needed)
-- ✅ Used consistently across multiple tables
-- ⚠️ No handling of NULL values (not an issue given defaults)
+**Description**:
+La vue `user_prediction_tracking` utilise un `CROSS JOIN` entre `users_profiles` et `ordered_matches` dans la CTE `user_prediction_status`. Cela crée un produit cartésien de tous les utilisateurs avec tous les matchs futurs, ce qui peut être très lent avec beaucoup d'utilisateurs ou de matchs.
 
-**Recommendations**:
-- No changes needed - well-designed
+**Pourquoi c'est un problème**:
+- **Performance**: CROSS JOIN est O(N*M) où N = utilisateurs, M = matchs
+- **Scalabilité**: Avec 1000 utilisateurs et 50 matchs, ça fait 50 000 lignes avant filtrage
+- **Blocage potentiel**: La vue peut être très lente à calculer
+- **Ressources**: Consomme beaucoup de CPU/mémoire
 
----
+**Impact concret possible**:
+- La page admin qui utilise cette vue est très lente
+- Timeout de la requête
+- Impact sur les autres requêtes
 
-### 5.5 `validate_prediction()`
+**Recommandation de correction**:
+1. Repenser la logique pour éviter le CROSS JOIN
+2. Utiliser une approche par utilisateur avec une sous-requête
+3. Ou créer une table matérialisée rafraîchie périodiquement
+4. Ajouter des indexes pour optimiser les jointures
 
-**Role**: Trigger function to validate prediction business rules
-
-**Analysis**:
-- ✅ Enforces important business rules at database level
-- ✅ Clear error messages
-- ⚠️ **Business logic in database layer** - should this be in application?
-- ⚠️ Complex validation logic harder to test than application code
-- ⚠️ Time-based validation (deadline) uses `timezone('utc', now())` - hard to test
-- ⚠️ No consideration for admin overrides (admin might need to override)
-
-**Validation Rules**:
-1. Match must exist
-2. Match cannot be finished
-3. Prediction deadline not passed
-4. Knockout draws require predicted_winner
-5. Group stages must not have predicted_winner
-
-**Recommendations**:
-- **P1**: Consider moving validation to application layer for better testability
-- **P2**: Add admin bypass if needed
-- **P2**: Add COMMENT documenting each rule
-- **P3**: Consider making deadline validation configurable per match
+**Type de correction**: Nécessite une refonte de la vue (risque de changement de comportement)
 
 ---
 
-## 6. Triggers Analysis
+### DB-007: breakdown_json et predictions_json sans validation de structure
 
-### 6.1 `matches_set_updated_at`
+**Gravité**: P1
+**Zone**: Schema / Data validation
 
-**Status**: ✅ Healthy
-- Standard updated_at trigger
-- No issues
+**Description**:
+Les colonnes `user_scores.breakdown_json`, `competition_predictions.predictions_json` et `rules.rules_json` sont de type `jsonb` avec une validation minimale (`jsonb_typeof = 'object'`). Il n'y a pas de validation de la structure interne des JSON (schéma JSON, contraintes sur les champs, etc.).
 
----
+**Pourquoi c'est un problème**:
+- **Pas de validation**: On peut insérer n'importe quel JSON valide
+- **Erreurs runtime**: Le code qui lit ces JSON peut échouer si la structure n'est pas celle attendue
+- **Difficile à debugger**: Les erreurs de structure sont détectées tardivement
+- **Pas de documentation**: La structure attendue n'est pas documentée dans le schéma
 
-### 6.2 `predictions_set_updated_at`
+**Impact concret possible**:
+- Insertion de JSON malformés qui cassent le front
+- Erreurs de calcul si le JSON n'a pas les champs attendus
+- Difficulté à comprendre quelles sont les structures valides
 
-**Status**: ✅ Healthy
-- Standard updated_at trigger
-- No issues
+**Recommandation de correction**:
+1. Ajouter des contraintes CHECK pour vérifier la présence de champs obligatoires
+2. Utiliser jsonb_path_query pour valider la structure
+3. Ou documenter clairement la structure attendue dans les commentaires
+4. envisager d'utiliser un schéma JSON (PostgreSQL 12+)
 
----
-
-### 6.3 `predictions_validate_before_insert` / `predictions_validate_before_update`
-
-**Status**: ⚠️ Discussable
-- Both use `validate_prediction()` function
-- Same issues as the function (see section 5.5)
-- Business logic in database layer
-
-**Recommendations**:
-- Same as function recommendations (move to app layer if desired)
-
----
-
-### 6.4 `rules_set_updated_at`
-
-**Status**: ✅ Healthy
-- Standard updated_at trigger
-- No issues
+**Type de correction**: Safe (ajout de contraintes CHECK)
 
 ---
 
-### 6.5 `users_profiles_set_updated_at`
+### DB-008: teams.flag_url toujours NULL
 
-**Status**: ✅ Healthy
-- Standard updated_at trigger
-- No issues
+**Gravité**: P2
+**Zone**: Schema / Unused columns
 
----
+**Description**:
+La colonne `teams.flag_url` existe mais est toujours NULL dans les données d'insertion (`supabase/data/teams.sql`). Il n'y a pas de logique pour remplir cette colonne.
 
-### 6.6 `ensure_rls` (Event Trigger)
+**Pourquoi c'est un problème**:
+- **Colonne inutilisée**: Elle occupe de l'espace sans être utilisée
+- **Confusion**: Les développeurs peuvent penser qu'elle est fonctionnelle
+- **Maintenance inutile**: Colonne à maintenir sans valeur ajoutée
 
-**Status**: ⚠️ Discussable
-- Calls `rls_auto_enable()` function
-- Good security practice
-- Depends on duplicate function (see section 5.3)
+**Impact concret possible**:
+- Confusion sur l'utilité de cette colonne
+- Espace disque inutile (mineur)
 
-**Recommendations**:
-- Fix duplicate function issue first
+**Recommandation de correction**:
+1. Supprimer la colonne si elle n'est pas utilisée
+2. Ou l'implémenter correctement (ajouter les URLs des drapeaux)
+3. Ou documenter pourquoi elle existe
 
----
-
-## 7. Views Analysis
-
-### 7.1 `leaderboard_detailed_view`
-
-**Role**: Main leaderboard view with detailed statistics
-
-**Status**: ✅ Active (used by app/leaderboard/page.tsx)
-
-**Analysis**:
-- ✅ Complex CTE structure for match statistics
-- ✅ Computes exact_score_count and correct_predictions_count
-- ✅ Joins user_scores and competition_leaderboard
-- ⚠️ **Logic duplication**: Statistics computed here but also in TypeScript sorting
-- ⚠️ SUM aggregation might have issues if user_scores has duplicates (shouldn't with unique constraint)
-- ⚠️ No handling of NULL breakdown_json in COALESCE
-- ⚠️ Performance: Multiple joins and aggregations on potentially large datasets
-
-**Frontend Usage**:
-- Read by `app/leaderboard/page.tsx`
-- **Sorting done in TypeScript**, not in view (lines 22-30)
-- Sorting criteria: `total_points DESC, exact_score_count DESC, email ASC`
-- This is documented in AGENTS.md - important for consistency
-
-**Recommendations**:
-- **P1**: Add ORDER BY to view to match frontend sorting (or document why not)
-- **P1**: Add indexes to support view queries
-- **P2**: Consider materialized view if performance issues
-- **P2**: Add COMMENT documenting the statistics logic
+**Type de correction**: Safe (suppression de colonne)
 
 ---
 
-### 7.2 `leaderboard_view`
+### DB-009: Manque d'index sur certaines colonnes fréquentes
 
-**Role**: Simple leaderboard view
+**Gravité**: P2
+**Zone**: Indexes / Performance
 
-**Status**: ❌ Obsolete (per AGENTS.md)
+**Description**:
+Certaines colonnes fréquemment utilisées dans les filtres ou jointures n'ont pas d'index :
+- `matches.winner` (utilisé pour les calculs de scores)
+- `users_profiles.nickname` (utilisé pour l'affichage leaderboard)
+- `user_scores.stage` (utilisé pour filtrer par stage)
 
-**Analysis**:
-- Simpler version of leaderboard_detailed_view
-- Has ORDER BY in view definition
-- Not used by application code
-- AGENTS.md explicitly states it's obsolete
+**Pourquoi c'est un problème**:
+- **Performance**: Requêtes plus lentes sans index
+- **Scalabilité**: Problème avec beaucoup de données
+- **Incohérence**: D'autres colonnes similaires ont des index
 
-**Recommendations**:
-- **P2**: Remove this view (documented as obsolete)
+**Impact concret possible**:
+- Leaderboard plus lent à charger
+- Calculs de scores plus lents
+- Timeout sur les requêtes
 
----
+**Recommandation de correction**:
+1. Ajouter des index sur `matches.winner`
+2. Ajouter un index sur `users_profiles.nickname`
+3. Ajouter un index sur `user_scores.stage`
+4. Analyser les requêtes du front pour identifier d'autres colonnes qui nécessitent des index
 
-### 7.3 `competition_predictions_with_users`
-
-**Role**: Competition predictions with user profile and leaderboard data
-
-**Status**: ⚠️ Discussable
-
-**Analysis**:
-- Joins competition_predictions with users_profiles and competition_leaderboard
-- Simple LEFT JOIN structure
-- ⚠️ No usage found in codebase (need to verify)
-- ⚠️ If unused, should be removed
-
-**Recommendations**:
-- **P2**: Verify usage - remove if unused
-- **P2**: Add COMMENT documenting purpose if used
+**Type de correction**: Safe (ajout d'index)
 
 ---
 
-### 7.4 `user_prediction_tracking`
+### DB-010: Doublon de policy SELECT sur certaines tables
 
-**Role**: Complex view tracking prediction continuity
+**Gravité**: P2
+**Zone**: Policies / Security / Maintenabilité
 
-**Status**: ⚠️ Fragile
+**Description**:
+Certaines tables ont des policies SELECT redondantes :
+- `matches`: "Authenticated users can view matches" ET "Matches are publicly readable"
+- `user_scores`: "Authenticated users can view user scores" ET "Scores are publicly readable"
+- `users_profiles`: "Authenticated users can view user profiles" ET "Profiles are publicly readable for leaderboard"
 
-**Analysis**:
-- Very complex CTE structure (4 CTEs)
-- Computes "continuous predictions count" - streak of consecutive predictions
-- Finds first gap in prediction sequence
-- Cross join users_profiles with ordered_matches (potential performance issue)
-- Multiple subqueries within CTEs
+**Pourquoi c'est un problème**:
+- **Confusion**: Difficile de savoir quelle policy s'applique
+- **Maintenance**: Deux policies à maintenir au lieu d'une
+- **Comportement imprévu**: Les policies sont combinées avec OR, donc si l'une est trop permissive, l'autre ne sert à rien
 
-**Issues**:
-- 🔴 **Complex, fragile logic** - hard to maintain
-- 🔴 **Cross join** could be expensive with many users and matches
-- ⚠️ Duplicate logic for counting ordered_matches (lines 156-159 and 164-168)
-- ⚠️ No documentation of what "continuous" means in business terms
-- ⚠️ Subquery in SELECT clause (line 198-204) - executed per row
+**Impact concret possible**:
+- Erreur de compréhension des droits d'accès
+- Policy trop permissive non détectée parce que l'autre la cache
+- Difficile de debuguer les problèmes d'accès
 
-**Usage**:
-- Used by `components/admin/UserPredictionTracking.tsx` (likely)
+**Recommandation de correction**:
+1. Fusionner les policies SELECT redondantes en une seule
+2. Garder la policy la plus permissive si c'est le comportement voulu
+3. Documenter clairement les intentions
 
-**Recommendations**:
-- **P1**: Simplify or refactor this view
-- **P1**: Add comprehensive COMMENT documenting the business logic
-- **P1**: Consider moving this logic to application layer for better testability
-- **P2**: Add indexes to support the queries
-- **P2**: Benchmark performance with realistic data volumes
+**Type de correction**: Safe (fusion de policies)
 
 ---
 
-## 8. Indexes Analysis
+## 4. Analyse détaillée par catégorie
 
-### 8.1 Matches Indexes
+### Schéma / Tables
 
-**Existing**:
-- `matches_external_id_idx` on `external_id`
-- `matches_finished_idx` on `finished`
-- `matches_stage_idx` on `stage`
-- `matches_start_time_idx` on `start_time`
+#### Points positifs
+- ✅ Noms de tables cohérents et clairs
+- ✅ Types de données appropriés (UUID pour les IDs, timestamp avec timezone)
+- ✅ Contraintes NOT NULL bien placées
+- ✅ Clés primaires claires
+- ✅ Default values appropriées (created_at, updated_at, finished=false)
 
-**Analysis**:
-- ✅ All indexes are appropriate for common query patterns
-- ✅ `finished` index for filtering finished matches
-- ✅ `start_time` index for ordering by time
-- ⚠️ No composite index for common patterns (e.g., finished + start_time)
+#### Points à améliorer
+- 🔴 `matches.home_team`/`away_team` devraient être des FK vers `teams` (DB-001)
+- 🔴 `competition_results.stage` devrait être un enum (DB-002)
+- 🔴 `competition_results.group_name` devrait être validé (DB-003)
+- 🟡 `teams.flag_url` inutilisée (DB-008)
+- 🟡 `competition_visibility_settings` est un singleton mais pas de contrainte pour garantir l'unicité
 
-**Recommendations**:
-- **P2**: Consider composite index on `(finished, start_time)` for common query pattern
-- **P2**: Add UNIQUE index on `external_id` (P0 issue from table analysis)
+#### Redondances
+- `matches.finished` + `matches.home_score`/`away_score` : on pourrait déduire finished si les scores sont NULL
+- `competition_leaderboard` + `user_scores` : les deux stockent des scores, mais à différents niveaux d'agrégation
 
----
-
-### 8.2 Predictions Indexes
-
-**Existing**:
-- `predictions_user_id_idx` on `user_id`
-- `predictions_match_id_idx` on `match_id`
-- `predictions_one_per_user_per_match` UNIQUE on `(user_id, match_id)`
-
-**Analysis**:
-- ✅ UNIQUE index serves as both constraint and index
-- ⚠️ `predictions_user_id_idx` and `predictions_match_id_idx` are redundant
-  - The UNIQUE index on `(user_id, match_id)` can be used for both queries
-  - PostgreSQL can use leftmost prefixes of composite indexes
-
-**Recommendations**:
-- **P2**: Remove redundant single-column indexes (keep only UNIQUE)
-- **P2**: Verify query plans before removal
+#### Colonnes potentiellement manquantes
+- `matches` n'a pas de lien vers `teams` (home_team_id, away_team_id)
+- `predictions` n'a pas de colonne pour stocker si la prédiction était correcte
+- `user_scores` n'a pas de lien vers `rules` pour savoir quelles règles ont été utilisées
 
 ---
 
-### 8.3 User Scores Indexes
+### Relations / FKs / Contraintes
 
-**Existing**:
-- `user_scores_user_id_idx` on `user_id`
-- `user_scores_match_id_idx` on `match_id`
-- `user_scores_computed_at_idx` on `computed_at`
-- `user_scores_one_per_user_per_match` UNIQUE on `(user_id, match_id)`
+#### Points positifs
+- ✅ Foreign keys bien définies vers `auth.users(id)`
+- ✅ Contrainte UNIQUE sur `matches.external_id` (empêche les doublons)
+- ✅ Contrainte CHECK sur `competition_leaderboard.total_points` (cohérence des points)
+- ✅ Contrainte CHECK sur `matches.winner` (valeurs valides)
+- ✅ Index UNIQUE sur `predictions(user_id, match_id)` (une prédiction par utilisateur par match)
+- ✅ Index UNIQUE sur `user_scores(user_id, match_id)` (un score par utilisateur par match)
 
-**Analysis**:
-- ⚠️ Same redundancy issue as predictions
-- ⚠️ `computed_at` index - is this actually used? Need to verify
-- ✅ UNIQUE index appropriate
+#### Points à améliorer
+- 🔴 Manque de FK `matches.home_team_id` → `teams(id)` (DB-001)
+- 🔴 Manque de FK `matches.away_team_id` → `teams(id)` (DB-001)
+- 🔴 Manque de validation sur `competition_results.group_name` (DB-003)
+- 🟡 `competition_results.stage` utilise un text avec CHECK au lieu d'un enum (DB-002)
+- 🟡 Pas de contrainte pour garantir que `competition_visibility_settings` est un singleton
 
-**Recommendations**:
-- **P2**: Remove redundant single-column indexes
-- **P2**: Verify if `computed_at` index is used - remove if not
-
----
-
-### 8.4 Teams Indexes
-
-**Existing**:
-- `teams_group_name_idx` on `group_name`
-
-**Analysis**:
-- ✅ Appropriate for filtering by group
-- ⚠️ `fifa_code` has UNIQUE constraint which creates index automatically
-
-**Recommendations**:
-- No changes needed
+#### Contraintes CHECK existantes
+- `matches.winner`: NULL ou 'home'/'away' ✅
+- `competition_results.stage`: 'groups'/'semi_final'/'final' 🟡 (devrait être un enum)
+- `competition_results.position`: >= 1 ✅
+- `user_scores.score`: >= 0 ✅
+- `competition_leaderboard.total_points`: >= 0 ✅
+- `competition_leaderboard.group_points`: >= 0 ✅
+- `competition_leaderboard.knockout_points`: >= 0 ✅
+- `competition_leaderboard.total_points = group_points + knockout_points` ✅
+- `rules.rules_json`: doit être un object ✅
+- `competition_predictions.predictions_json`: doit être un object ✅
 
 ---
 
-### 8.5 Competition Results Indexes
+### Vues
 
-**Existing**:
-- `competition_results_group_name_idx` on `group_name`
-- `competition_results_stage_idx` on `stage`
-- `competition_results_team_id_idx` on `team_id`
+#### Vue `leaderboard_detailed_view`
+**Utilisation**: ✅ Utilisée par le front (`app/leaderboard/page.tsx`)
+**Qualité**: ✅ Bonne design avec CTE pour les stats
+**Problèmes**: Aucun majeur
+**Recommandation**: Garder telle quelle
 
-**Analysis**:
-- ✅ All appropriate for common query patterns
-- ✅ FK to teams indexed (good practice)
+#### Vue `leaderboard_view`
+**Utilisation**: ❌ Non utilisée (remplacée par `leaderboard_detailed_view`)
+**Qualité**: 🟡 Version simplifiée sans stats détaillées
+**Problèmes**: Obsolète, crée de la confusion (DB-004)
+**Recommandation**: Supprimer ou documenter clairement son utilité
 
-**Recommendations**:
-- No changes needed
+#### Vue `competition_predictions_with_users`
+**Utilisation**: ✅ Utilisée par l'API (`app/api/competition-predictions/others/route.ts`)
+**Qualité**: 🟡 Jointure simple mais expose des données sensibles
+**Problèmes**: Expose les emails (DB-005)
+**Recommandation**: Retirer `up.email`, garder uniquement `up.nickname`
 
----
-
-### 8.6 Competition Leaderboard Indexes
-
-**Existing**:
-- `competition_leaderboard_total_points_idx` on `total_points`
-- `competition_leaderboard_user_id_idx` on `user_id`
-
-**Analysis**:
-- ⚠️ `user_id` index is redundant - UNIQUE constraint on `user_id` creates index
-- ✅ `total_points` index useful for leaderboard sorting
-- ⚠️ No index on `group_points` or `knockout_points` if filtered by these
-
-**Recommendations**:
-- **P2**: Remove redundant `user_id` index
-- **P2**: Consider composite index on `(total_points, group_points, knockout_points)` for leaderboard queries
+#### Vue `user_prediction_tracking`
+**Utilisation**: ✅ Utilisée par l'admin (`components/admin/UserPredictionTracking.tsx`)
+**Qualité**: 🔴 Logique complexe avec CROSS JOIN
+**Problèmes**: Performance avec CROSS JOIN (DB-006)
+**Recommandation**: Refondre pour éviter le CROSS JOIN ou utiliser une table matérialisée
 
 ---
 
-### 8.7 Rules Indexes
+### Fonctions
 
-**Existing**:
-- `rules_is_active_idx` on `is_active`
+#### `handle_new_user()`
+**Rôle**: Crée automatiquement le profil utilisateur lors de l'inscription
+**Sécurité**: SECURITY DEFINER ✅
+**Qualité**: ✅ Bonne gestion du conflit avec ON CONFLICT
+**Problèmes**: Aucun
+**Recommandation**: Garder telle quelle
 
-**Analysis**:
-- ✅ Appropriate for finding active rule
-- ⚠️ Query also orders by `updated_at DESC` - might benefit from composite index
+#### `is_admin()`
+**Rôle**: Vérifie si l'utilisateur connecté est admin
+**Sécurité**: SECURITY DEFINER ✅
+**Qualité**: ✅ Simple et efficace
+**Problèmes**: Aucun
+**Recommandation**: Garder telle quelle
 
-**Recommendations**:
-- **P2**: Consider composite index on `(is_active, updated_at DESC)`
+#### `set_updated_at()`
+**Rôle**: Met à jour `updated_at` automatiquement
+**Sécurité**: SECURITY INVOKER ✅
+**Qualité**: ✅ Simple et efficace
+**Problèmes**: Aucun
+**Recommandation**: Garder telle quelle
+
+#### `validate_prediction()`
+**Rôle**: Valide les prédictions avant insert/update
+**Sécurité**: SECURITY INVOKER ✅
+**Qualité**: ✅ Logique de validation complète
+**Validations**:
+- Match existe ✅
+- Match non terminé ✅
+- Deadline non passée ✅
+- predicted_winner requis pour knockout draw ✅
+- predicted_winner null pour group stage ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telle quelle
+
+#### `rls_auto_enable()`
+**Rôle**: Active RLS automatiquement sur les nouvelles tables
+**Sécurité**: SECURITY DEFINER + SET search_path TO 'pg_catalog' ✅
+**Qualité**: ✅ Bonne pratique de sécurité
+**Problèmes**: Aucun
+**Recommandation**: Garder telle quelle
 
 ---
 
-## 9. RLS / Security Analysis
+### Triggers
 
-### 9.1 Critical Security Issues
+#### Triggers `set_updated_at`
+**Tables**: matches, predictions, rules, users_profiles
+**Qualité**: ✅ Cohérent sur toutes les tables
+**Problèmes**: Aucun
+**Recommandation**: Garder tels quels
 
-#### 🔴 Missing RLS on `competition_leaderboard`
-- **Table has NO RLS policies defined**
-- **Table is NOT RLS-enabled**
-- Anyone with database access can read/modify leaderboard
-- **Impact**: Users could manipulate their own scores
-- **Priority**: P0
+#### Triggers `validate_prediction`
+**Tables**: predictions (INSERT et UPDATE)
+**Qualité**: ✅ Validation avant insertion/modification
+**Problèmes**: Aucun
+**Recommandation**: Garder tels quels
 
-#### 🔴 Missing RLS on `competition_visibility_settings`
-- **Table has RLS enabled but policies are incomplete**
-- Only SELECT and UPDATE policies defined
-- No INSERT or DELETE policies
-- **Impact**: Incomplete security model
-- **Priority**: P1
+#### Event trigger `ensure_rls`
+**Fonction**: `rls_auto_enable()`
+**Qualité**: ✅ Bonne pratique de sécurité par défaut
+**Problèmes**: Aucun
+**Recommandation**: Garder tel quel
 
 ---
 
-### 9.2 Table-by-Table Security Analysis
+### Policies / Sécurité
 
-### `competition_predictions`
+#### Table `users_profiles`
 **Policies**:
-- ✅ SELECT: Authenticated users can view own predictions
-- ✅ INSERT: Users can insert own predictions
-- ✅ UPDATE: Users can update own predictions
-- ✅ DELETE: Users can delete own predictions
+- SELECT: Authenticated + public ✅
+- INSERT: own profile ✅
+- UPDATE: own profile ✅
+- DELETE: Aucune ⚠️
+**Problèmes**: Pas de policy DELETE (intentionnel ?)
+**Recommandation**: Vérifier si c'est intentionnel, sinon ajouter policy DELETE pour own profile
 
-**Issues**:
-- ⚠️ No admin override policy
-- ✅ Well-designed row-level security
-
----
-
-### `competition_results`
+#### Table `matches`
 **Policies**:
-- ✅ SELECT: Authenticated users can view (read-only)
-- ✅ ALL: Service role can manage (admin operations)
+- SELECT: Authenticated + public ✅
+- INSERT: Admin only ✅
+- UPDATE: Admin only ✅
+- DELETE: Admin only ✅
+**Problèmes**: Doublon de policy SELECT (DB-010)
+**Recommandation**: Fusionner les policies SELECT
 
-**Issues**:
-- ⚠️ No authenticated admin policy (only service_role)
-- ✅ Appropriate for reference data
-
----
-
-### `competition_visibility_settings`
+#### Table `predictions`
 **Policies**:
-- ✅ SELECT: Authenticated users can read
-- ✅ UPDATE: Only admins can update (uses `is_admin()`)
+- SELECT: own predictions ✅
+- INSERT: own predictions ✅
+- UPDATE: own predictions ✅
+- DELETE: own predictions ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telles quelles
 
-**Issues**:
-- 🔴 No INSERT policy (how is the row created?)
-- 🔴 No DELETE policy
-- ⚠️ Update policy uses `is_admin()` but table has no user_id
-- **Impact**: Incomplete - table might be unusable
-
-**Recommendations**:
-- **P1**: Add INSERT policy (for initial setup)
-- **P1**: Add DELETE policy (if needed)
-- **P0**: Clarify table design (singleton vs per-user)
-
----
-
-### `matches`
+#### Table `user_scores`
 **Policies**:
-- ✅ SELECT: Authenticated users can view
-- ✅ SELECT: Public can view (anon + authenticated)
-- ✅ INSERT/UPDATE/DELETE: Only admins
+- SELECT: Authenticated + public ✅
+- INSERT/UPDATE/DELETE: Admin only ✅
+**Problèmes**: Doublon de policy SELECT (DB-010)
+**Recommandation**: Fusionner les policies SELECT
 
-**Issues**:
-- ⚠️ Two SELECT policies (authenticated and public) - redundant
-- ✅ Appropriate for reference data
-
-**Recommendations**:
-- **P2**: Consolidate SELECT policies (keep public only)
-
----
-
-### `predictions`
+#### Table `teams`
 **Policies**:
-- ✅ SELECT: Authenticated users can view own predictions
-- ✅ INSERT: Users can insert own predictions
-- ✅ UPDATE: Users can update own predictions
-- ✅ DELETE: Users can delete own predictions
+- SELECT: Public ✅
+- INSERT/UPDATE/DELETE: Aucune ⚠️
+**Problèmes**: Pas de policies pour modifications (intentionnel ?)
+**Recommandation**: Vérifier si c'est intentionnel, sinon ajouter policies admin-only
 
-**Issues**:
-- ⚠️ No admin override policy
-- ✅ Well-designed row-level security
-
----
-
-### `rules`
+#### Table `rules`
 **Policies**:
-- ✅ SELECT: Public can view (anon + authenticated)
-- ✅ INSERT/UPDATE/DELETE: Only admins
+- SELECT: Public ✅
+- INSERT/UPDATE/DELETE: Admin only ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telles quelles
 
-**Issues**:
-- ✅ Appropriate for reference data
-
----
-
-### `teams`
+#### Table `competition_predictions`
 **Policies**:
-- ✅ SELECT: Public can view
+- SELECT: own predictions ✅
+- INSERT: own predictions ✅
+- UPDATE: own predictions ✅
+- DELETE: own predictions ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telles quelles
 
-**Issues**:
-- ✅ Appropriate for reference data
-
----
-
-### `user_scores`
+#### Table `competition_results`
 **Policies**:
-- ✅ SELECT: Authenticated users can view
-- ✅ SELECT: Public can view (anon + authenticated)
-- ✅ ALL: Only admins can update
+- SELECT: Authenticated ✅
+- INSERT/UPDATE/DELETE: Service role only ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telles quelles
 
-**Issues**:
-- ⚠️ Two SELECT policies (authenticated and public) - redundant
-- ⚠️ Public read access - is this intentional? Scores reveal user performance
-- ✅ Admin-only modification is appropriate
-
-**Recommendations**:
-- **P2**: Consolidate SELECT policies
-- **P1**: Review if public read access is appropriate
-
----
-
-### `users_profiles`
+#### Table `competition_leaderboard`
 **Policies**:
-- ✅ SELECT: Authenticated users can view all profiles
-- ✅ SELECT: Public can view (for leaderboard)
-- ✅ INSERT: Users can insert own profile
-- ✅ SELECT: Users can read own profile
-- ✅ UPDATE: Users can update own profile
+- SELECT: own entry ✅
+- INSERT/UPDATE/DELETE: Admin only ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telles quelles
 
-**Issues**:
-- ⚠️ Three SELECT policies - potential redundancy
-- ⚠️ Public read access exposes emails - privacy concern?
-- ✅ User self-management is appropriate
-
-**Recommendations**:
-- **P1**: Review if public read access with emails is appropriate
-- **P2**: Consolidate SELECT policies
+#### Table `competition_visibility_settings`
+**Policies**:
+- SELECT: Authenticated ✅
+- INSERT/UPDATE/DELETE: Admin only ✅
+**Problèmes**: Aucun
+**Recommandation**: Garder telles quelles
 
 ---
 
-### 9.3 Security Summary
+### Index / Performance
 
-**What a normal user can see/modify**:
-- ✅ View: matches, teams, rules, own predictions, own competition predictions, user scores, user profiles
-- ✅ Modify: own predictions, own competition predictions, own profile
-- ❌ Cannot: modify matches, results, scores, leaderboard, rules, visibility settings
+#### Index existants
+**matches**:
+- external_id ✅
+- finished ✅
+- stage ✅
+- start_time ✅
 
-**What an admin can see/modify**:
-- ✅ View: everything
-- ✅ Modify: matches, rules, user scores, visibility settings
-- ❌ Cannot: directly modify competition_leaderboard (no RLS, but no policy either)
+**predictions**:
+- user_id ✅
+- match_id ✅
+- (user_id, match_id) UNIQUE ✅
 
-**Risks**:
-1. **competition_leaderboard** - No RLS at all
-2. **competition_visibility_settings** - Incomplete policies
-3. **Public read access** - Emails and scores exposed to anonymous users
-4. **No admin override** - Cannot fix user predictions if needed
+**user_scores**:
+- user_id ✅
+- match_id ✅
+- computed_at ✅
+- (user_id, match_id) UNIQUE ✅
 
----
+**teams**:
+- group_name ✅
 
-## 10. Cross-Cutting Issues and Technical Debt
+**competition_results**:
+- group_name ✅
+- stage ✅
+- team_id ✅
 
-### 10.1 Logic Duplication
+**competition_leaderboard**:
+- total_points ✅
+- user_id ✅
 
-**Score Calculation**:
-- Logic exists in TypeScript: `lib/scoringEngine.ts`, `lib/scoring/simpleScoring.ts`
-- Views also compute statistics: `leaderboard_detailed_view`
-- Risk: Inconsistency between application and database calculations
+**rules**:
+- is_active ✅
 
-**Prediction Validation**:
-- Logic in trigger: `validate_prediction()`
-- Also likely in application layer
-- Risk: Different validation rules in different layers
+#### Index manquants (DB-009)
+- `matches.winner` (utilisé pour les calculs de scores)
+- `users_profiles.nickname` (utilisé pour l'affichage leaderboard)
+- `user_scores.stage` (utilisé pour filtrer par stage)
 
-**Sorting/Ordering**:
-- Frontend sorts leaderboard in TypeScript (app/leaderboard/page.tsx)
-- AGENTS.md documents this as important for consistency
-- Risk: Future changes might not maintain consistency
-
-**Recommendations**:
-- **P1**: Choose single source of truth for score calculation
-- **P1**: Document which layer owns which business logic
-- **P1**: Add tests to ensure consistency between layers
-
----
-
-### 10.2 Cache Without Invalidation
-
-**User Scores**:
-- Stored in `user_scores` table
-- Recalculated manually via API
-- No automatic invalidation when:
-  - Prediction changes
-  - Match result changes
-  - Rules change
-- Risk: Stale scores if recalculation not triggered
-
-**Competition Leaderboard**:
-- Stored in `competition_leaderboard` table
-- Recalculated manually via API
-- No automatic invalidation when:
-  - Competition prediction changes
-  - Competition result changes
-- Risk: Stale leaderboard if recalculation not triggered
-
-**Recommendations**:
-- **P0**: Document cache invalidation strategy
-- **P1**: Consider triggers to auto-invalidate on relevant changes
-- **P1**: Add `last_invalidated_at` timestamp to track staleness
-- **P2**: Consider materialized views with refresh strategies
+#### Index redondants
+- `predictions.user_id` et `predictions.match_id` sont couverts par l'index composite (user_id, match_id)
+- `user_scores.user_id` et `user_scores.match_id` sont couverts par l'index composite (user_id, match_id)
 
 ---
 
-### 10.3 Inconsistent Data Types
+### Maintenabilité / Dette technique
 
-**Text vs Enum**:
-- `matches.stage` uses `match_stage` enum ✅
-- `competition_results.stage` uses TEXT ❌
-- `matches.winner` uses TEXT + CHECK ❌
-- `predictions.predicted_winner` uses `knockout_winner_pick` enum ✅
+#### Points positifs
+- ✅ Séparation claire des fichiers SQL (schema, functions, triggers, policies, views, indexes)
+- ✅ Commentaires explicites dans le code
+- ✅ Noms cohérents et descriptifs
+- ✅ Event trigger pour sécurité par défaut
 
-**Text vs Foreign Key**:
-- `matches.home_team`/`away_team` use TEXT ❌
-- Should reference `teams.id` via FK ✅
+#### Points à améliorer
+- 🟡 Vue `leaderboard_view` obsolète (DB-004)
+- 🟡 Doublon de policies SELECT (DB-010)
+- 🟡 Colonne `teams.flag_url` inutilisée (DB-008)
+- 🟡 `competition_results.stage` utilise text + CHECK au lieu d'enum (DB-002)
+- 🟡 JSON sans validation de structure (DB-007)
 
-**Recommendations**:
-- **P0**: Standardize on enums where applicable
-- **P0**: Use FKs instead of text references
+#### Code mort / Legacy
+- Vue `leaderboard_view` non utilisée (DB-004)
+- Colonne `teams.flag_url` toujours NULL (DB-008)
 
----
-
-### 10.4 Inconsistent Timestamps
-
-**Pattern**:
-- Most tables have `created_at` and `updated_at`
-- `competition_results` only has `updated_at`
-- `competition_visibility_settings` only has `updated_at`
-- `competition_leaderboard` only has `updated_at`
-
-**Recommendations**:
-- **P2**: Add `created_at` to all tables for audit trail
-- **P2**: Standardize timestamp naming convention
+#### Points confus
+- Design singleton de `competition_visibility_settings` pas garanti par une contrainte
+- Incohérence entre `matches.stage` (enum) et `competition_results.stage` (text + CHECK)
+- Duplication de noms d'équipes en text vs références teams
 
 ---
 
-### 10.5 Missing Constraints
+## 5. Liste des incohérences / redondances / éléments suspects
 
-**Uniqueness**:
-- `matches.external_id` - no UNIQUE constraint
-- `competition_results` - no UNIQUE on (stage, group_name, position)
+### Colonnes inutiles ou ambiguës
+- `teams.flag_url` - Toujours NULL, jamais utilisée (DB-008)
+- `competition_visibility_settings.id` - Pour un singleton, l'ID n'est pas vraiment nécessaire
 
-**Check Constraints**:
-- No CHECK on score ranges in leaderboard tables
-- No CHECK on `total_points = group_points + knockout_points`
-- No CHECK on `group_name` format in teams
+### Tables qui doublonnent une logique
+- `user_scores` et `competition_leaderboard` - Les deux stockent des scores, mais à différents niveaux d'agrégation (match vs compétition). C'est intentionnel mais pourrait être confus.
 
-**Recommendations**:
-- **P0**: Add UNIQUE on `matches.external_id`
-- **P1**: Add CHECK constraints for data integrity
-- **P2**: Add UNIQUE constraints where appropriate
+### Vues qui exposent des colonnes bancales
+- `competition_predictions_with_users` - Expose `up.email` (données sensibles) (DB-005)
+- `leaderboard_view` - Vue obsolète qui pourrait être utilisée par erreur (DB-004)
 
----
+### Fonctions obsolètes
+- Aucune fonction obsolète détectée
 
-### 10.6 Business Logic in Wrong Layer
+### Policies incohérentes
+- Doublon de policies SELECT sur `matches`, `user_scores`, `users_profiles` (DB-010)
+- Pas de policies DELETE sur `users_profiles` (intentionnel ?)
+- Pas de policies INSERT/UPDATE/DELETE sur `teams` (intentionnel ?)
 
-**Database Layer**:
-- Prediction validation in trigger
-- RLS policies (appropriate)
-- Event triggers for RLS (appropriate)
-
-**Application Layer**:
-- Score calculation in TypeScript
-- Competition scoring in TypeScript
-- Leaderboard sorting in TypeScript
-
-**Issues**:
-- Validation logic split between database and application
-- Score calculation only in application (should database enforce constraints?)
-- No clear separation of concerns
-
-**Recommendations**:
-- **P1**: Document which logic belongs in which layer
-- **P1**: Consider moving all validation to application layer for testability
-- **P2**: Add database-level constraints for critical business rules
+### Logique métier répartie à plusieurs endroits
+- Calcul des scores: Logique dans `lib/scoring/recalculateCompetition.ts` et `lib/recalculateScores.ts` (code TypeScript), pas dans la base
+- Validation des prédictions: Trigger `validate_prediction()` dans la base ✅
+- Mise à jour de `updated_at`: Trigger `set_updated_at()` dans la base ✅
 
 ---
 
-### 10.7 Naming Inconsistencies
+## 6. Plan d'action recommandé
 
-**Table Names**:
-- Plural: `users_profiles`, `matches`, `predictions`, `teams` ✅
-- Singular: `rules` ❌ (should be `rules_configurations` or similar)
+### P0 - À corriger en premier
 
-**Column Names**:
-- Generally consistent ✅
-- `created_at`/`updated_at` pattern consistent ✅
-- `*_json` suffix for JSONB columns consistent ✅
+#### DB-001: matches.home_team / away_team sont des text sans FK vers teams
+**Type**: Nécessite une migration prudente avec backfill de données
+**Correction**:
+1. Ajouter `home_team_id` et `away_team_id` (UUID) avec FK vers `teams(id)`
+2. Migrer les données existantes en faisant un mapping nom → ID
+3. Marquer les colonnes `home_team`/`away_team` comme obsolètes
+4. Mettre à jour toutes les requêtes, vues et fonctions
+5. Mettre à jour le front
+**Risque**: Élevé - impact sur tout le système
+**Délai estimé**: 2-3 jours de développement + tests
 
-**Recommendations**:
-- **P3**: Rename `rules` to `scoring_rules` for clarity
+#### DB-002: competition_results.stage est un text avec CHECK, pas d'enum
+**Type**: Safe avec migration de type (si compatible) ou nécessite une décision produit
+**Correction**:
+1. Créer un nouvel enum `competition_stage` ou réutiliser `match_stage`
+2. Modifier `competition_results.stage` pour utiliser l'enum
+3. Mettre à jour ou supprimer la contrainte CHECK
+4. Vérifier la compatibilité des données existantes
+**Risque**: Moyen - impact sur le code qui utilise cette colonne
+**Délai estimé**: 1 jour de développement + tests
 
----
-
-## 11. Suspected Dead / Redundant / Legacy Elements
-
-### 11.1 Definitely Redundant
-
-**Duplicate Function Definition**:
-- `rls_auto_enable()` defined in both `functions.sql` and `triggers.sql`
-- **Risk**: Last definition wins, unclear which is used
-- **Action**: Remove one (keep the more secure version)
-
-**Redundant Indexes**:
-- `predictions_user_id_idx` - covered by UNIQUE index
-- `predictions_match_id_idx` - covered by UNIQUE index
-- `user_scores_user_id_idx` - covered by UNIQUE index
-- `user_scores_match_id_idx` - covered by UNIQUE index
-- `competition_leaderboard_user_id_idx` - covered by UNIQUE constraint
-- **Action**: Remove redundant indexes
-
-**Redundant SELECT Policies**:
-- `matches`: Two SELECT policies (authenticated + public)
-- `user_scores`: Two SELECT policies (authenticated + public)
-- `users_profiles`: Three SELECT policies
-- **Action**: Consolidate
+#### DB-003: competition_results.group_name sans validation
+**Type**: Safe (ajout de contrainte CHECK ou enum)
+**Correction**:
+1. Ajouter une contrainte CHECK sur `group_name` pour limiter aux valeurs A-L
+2. Ou créer un enum pour les noms de groupes
+3. Vérifier que toutes les valeurs existantes sont valides
+**Risque**: Faible - si des données invalides existent, la migration échouera
+**Délai estimé**: 0.5 jour de développement + tests
 
 ---
 
-### 11.2 Likely Unused
+### P1 - Important mais pas bloquant immédiat
 
-**Obsolete View**:
-- `leaderboard_view` - documented as obsolete in AGENTS.md
-- Not used by application code
-- **Action**: Remove after confirmation
+#### DB-004: Vue leaderboard_view obsolète et non utilisée
+**Type**: Safe (suppression de vue non utilisée)
+**Correction**:
+1. Vérifier dans tout le codebase qu'elle n'est pas utilisée
+2. Supprimer la vue
+**Risque**: Faible - vue non utilisée
+**Délai estimé**: 0.5 jour
 
-**Possibly Unused View**:
-- `competition_predictions_with_users` - no usage found in codebase
-- **Action**: Verify usage, remove if unused
+#### DB-005: competition_predictions_with_users expose les emails
+**Type**: Safe (modification de vue)
+**Correction**:
+1. Retirer `up.email` de la vue
+2. Garder uniquement `up.nickname`
+3. Tester l'API qui utilise cette vue
+**Risque**: Faible - modification mineure
+**Délai estimé**: 0.5 jour + tests
 
-**Possibly Unused Index**:
-- `user_scores_computed_at_idx` - need to verify if actually used
-- **Action**: Check query plans, remove if unused
+#### DB-006: user_prediction_tracking utilise un CROSS JOIN
+**Type**: Nécessite une refonte de la vue (risque de changement de comportement)
+**Correction**:
+1. Repenser la logique pour éviter le CROSS JOIN
+2. Utiliser une approche par utilisateur avec une sous-requête
+3. Ou créer une table matérialisée rafraîchie périodiquement
+4. Tester la performance avant/après
+**Risque**: Moyen - changement de logique potentiel
+**Délai estimé**: 1-2 jours + tests
 
----
-
-### 11.3 Derived Columns (Potential Redundancy)
-
-**Computed Columns That Could Be Derived**:
-- `predictions.predicted_winner` - can be computed from scores
-- `matches.winner` - can be computed from scores
-- `user_scores.stage` - can be joined from `matches`
-- `predictions.stage` - can be joined from `matches`
-
-**Action**:
-- **P2**: Evaluate if these columns are needed for performance
-- **P2**: Consider removing if not performance-critical
-
----
-
-### 11.4 Singleton Table Design
-
-**`competition_visibility_settings`**:
-- Single row table (UNIQUE on `id`)
-- No user_id column
-- Unclear if global or per-user
-- **Action**: Clarify design intent (see section 3.10)
-
----
-
-## 12. Prioritized Recommendations
-
-### P0 - Urgent / Bug / Security / Critical Inconsistency
-
-#### 1. Enable RLS on `competition_leaderboard`
-- **Problem**: Table has no RLS policies, not even enabled
-- **Impact**: Anyone can read/modify leaderboard scores
-- **Proposal**:
-  ```sql
-  ALTER TABLE public.competition_leaderboard ENABLE ROW LEVEL SECURITY;
-  CREATE POLICY "Users can view own leaderboard entry"
-    ON public.competition_leaderboard
-    FOR SELECT TO authenticated
-    USING (auth.uid() = user_id);
-  CREATE POLICY "Admins can manage leaderboard"
-    ON public.competition_leaderboard
-    FOR ALL TO authenticated
-    USING (public.is_admin())
-    WITH CHECK (public.is_admin());
-  ```
-- **Risk if not fixed**: Users could manipulate their own scores, leaderboard integrity compromised
-- **Complexity**: Low
-
-#### 2. Fix duplicate `rls_auto_enable()` function
-- **Problem**: Function defined twice with slight differences
-- **Impact**: Unclear which version is used, potential security issue
-- **Proposal**: Remove version from `functions.sql`, keep version from `triggers.sql` (has `SET search_path TO 'pg_catalog'`)
-- **Risk if not fixed**: Configuration drift, potential security vulnerability
-- **Complexity**: Low
-
-#### 3. Convert `matches.home_team`/`away_team` to FKs
-- **Problem**: Text fields instead of foreign keys to `teams`
-- **Impact**: No referential integrity, can reference non-existent teams
-- **Proposal**:
-  ```sql
-  ALTER TABLE public.matches
-    ADD COLUMN home_team_id uuid REFERENCES teams(id),
-    ADD COLUMN away_team_id uuid REFERENCES teams(id);
-  -- Migration required to populate from existing text values
-  ```
-- **Risk if not fixed**: Data corruption, inconsistent team names
-- **Complexity**: High (requires migration)
-
-#### 4. Add UNIQUE constraint on `matches.external_id`
-- **Problem**: No uniqueness constraint on external ID
-- **Impact**: Can import same match twice
-- **Proposal**: `ALTER TABLE public.matches ADD CONSTRAINT matches_external_id_unique UNIQUE (external_id);`
-- **Risk if not fixed**: Duplicate matches, incorrect data
-- **Complexity**: Low (but need to check for existing duplicates first)
-
-#### 5. Fix `competition_visibility_settings` design
-- **Problem**: No user_id, unclear if singleton or per-user, incomplete policies
-- **Impact**: Table might be unusable or confusing
-- **Proposal**: Choose one:
-  - Option A: Document as global singleton, add INSERT policy for initial setup
-  - Option B: Add user_id, make it per-user settings
-- **Risk if not fixed**: Configuration management issues
-- **Complexity**: Medium
-
-#### 6. Add CHECK constraint to `competition_leaderboard`
-- **Problem**: No constraint ensuring `total_points = group_points + knockout_points`
-- **Impact**: Data inconsistency possible
-- **Proposal**: `ALTER TABLE public.competition_leaderboard ADD CONSTRAINT total_points_sum_check CHECK (total_points = group_points + knockout_points);`
-- **Risk if not fixed**: Incorrect leaderboard calculations
-- **Complexity**: Low
+#### DB-007: breakdown_json et predictions_json sans validation de structure
+**Type**: Safe (ajout de contraintes CHECK)
+**Correction**:
+1. Ajouter des contraintes CHECK pour vérifier la présence de champs obligatoires
+2. Utiliser jsonb_path_query pour valider la structure
+3. Documenter la structure attendue
+**Risque**: Faible - si des données invalides existent, la migration échouera
+**Délai estimé**: 1 jour + tests
 
 ---
 
-### P1 - Important
+### P2 - Amélioration utile
 
-#### 7. Use enum for `competition_results.stage`
-- **Problem**: Uses TEXT instead of `match_stage` enum
-- **Impact**: No database-level validation
-- **Proposal**: Add column with enum, migrate data, drop old column
-- **Risk if not fixed**: Invalid stage values possible
-- **Complexity**: Medium (requires migration)
+#### DB-008: teams.flag_url toujours NULL
+**Type**: Safe (suppression de colonne)
+**Correction**:
+1. Supprimer la colonne `flag_url`
+2. Ou l'implémenter correctement
+**Risque**: Faible - colonne inutilisée
+**Délai estimé**: 0.25 jour
 
-#### 8. Use enum for `matches.winner`
-- **Problem**: Uses TEXT + CHECK instead of `knockout_winner_pick` enum
-- **Impact**: Inconsistent with predictions, less type safety
-- **Proposal**: Change column type to `knockout_winner_pick`
-- **Risk if not fixed**: Type inconsistency
-- **Complexity**: Low
+#### DB-009: Manque d'index sur certaines colonnes fréquentes
+**Type**: Safe (ajout d'index)
+**Correction**:
+1. Ajouter des index sur `matches.winner`, `users_profiles.nickname`, `user_scores.stage`
+2. Analyser les requêtes du front pour identifier d'autres colonnes
+**Risque**: Faible - amélioration de performance uniquement
+**Délai estimé**: 0.5 jour
 
-#### 9. Remove obsolete `leaderboard_view`
-- **Problem**: Documented as obsolete but still exists
-- **Impact**: Confusion, maintenance burden
-- **Proposal**: `DROP VIEW public.leaderboard_view;`
-- **Risk if not fixed**: None (documented as obsolete)
-- **Complexity**: Low
-
-#### 10. Add version tracking to cache tables
-- **Problem**: `user_scores` and `competition_leaderboard` don't track which rules/results produced them
-- **Impact**: Hard to debug score inconsistencies
-- **Proposal**: Add `rules_version_id` or `results_version_id` columns
-- **Risk if not fixed**: Difficult to troubleshoot scoring issues
-- **Complexity**: Medium
-
-#### 11. Simplify `user_prediction_tracking` view
-- **Problem**: Very complex, fragile CTE logic
-- **Impact**: Hard to maintain, potential performance issues
-- **Proposal**: Refactor to simpler structure or move to application layer
-- **Risk if not fixed**: Maintenance burden, potential bugs
-- **Complexity**: High
-
-#### 12. Add validation to `competition_predictions.predictions_json`
-- **Problem**: No database-level validation of JSON structure
-- **Impact**: Invalid predictions can be stored
-- **Proposal**: Add CHECK constraint or trigger to validate structure
-- **Risk if not fixed**: Invalid data in database
-- **Complexity**: Medium
-
-#### 13. Add admin override policies
-- **Problem**: No admin can override user restrictions
-- **Impact**: Admins cannot fix user issues
-- **Proposal**: Add admin bypass policies to key tables
-- **Risk if not fixed**: Admin cannot fix user errors
-- **Complexity**: Low
-
-#### 14. Review public read access
-- **Problem**: Emails and scores exposed to anonymous users
-- **Impact**: Privacy concern
-- **Proposal**: Remove public read from sensitive tables, keep on reference data
-- **Risk if not fixed**: Privacy exposure
-- **Complexity**: Low
-
-#### 15. Add UNIQUE constraint to `competition_results`
-- **Problem**: No constraint on (stage, group_name, position)
-- **Impact**: Can have duplicate results
-- **Proposal**: Add UNIQUE constraint where applicable
-- **Risk if not fixed**: Duplicate results possible
-- **Complexity**: Low
+#### DB-010: Doublon de policy SELECT sur certaines tables
+**Type**: Safe (fusion de policies)
+**Correction**:
+1. Fusionner les policies SELECT redondantes sur `matches`, `user_scores`, `users_profiles`
+2. Garder la policy la plus permissive
+3. Documenter clairement les intentions
+**Risque**: Faible - clarification uniquement
+**Délai estimé**: 0.5 jour
 
 ---
 
-### P2 - Useful Improvements
+### P3 - Dette technique / confort / nettoyage
 
-#### 16. Remove redundant indexes
-- **Problem**: Single-column indexes covered by UNIQUE indexes
-- **Impact**: Wasted storage, slower writes
-- **Proposal**: Remove redundant indexes listed in section 8
-- **Risk if not fixed**: Slight performance overhead
-- **Complexity**: Low (but verify query plans first)
+#### Documentation manquante
+- Documenter la structure attendue des JSON (`breakdown_json`, `predictions_json`, `rules_json`)
+- Documenter pourquoi `teams.flag_url` existe mais n'est pas utilisée
+- Documenter l'intention du design singleton de `competition_visibility_settings`
 
-#### 17. Consolidate SELECT policies
-- **Problem**: Multiple SELECT policies on same tables
-- **Impact**: Confusion, maintenance burden
-- **Proposal**: Keep most permissive policy, remove others
-- **Risk if not fixed**: None
-- **Complexity**: Low
+#### Contrainte pour garantir singleton
+- Ajouter une contrainte pour garantir qu'une seule ligne existe dans `competition_visibility_settings`
+- Ou utiliser un trigger pour empêcher l'insertion de plusieurs lignes
 
-#### 18. Add composite indexes for common patterns
-- **Problem**: Single-column indexes might not cover common query patterns
-- **Impact**: Suboptimal query performance
-- **Proposal**: Add composite indexes for (finished, start_time), (is_active, updated_at), etc.
-- **Risk if not fixed**: Slower queries at scale
-- **Complexity**: Low
-
-#### 19. Add `created_at` to all tables
-- **Problem**: Some tables missing `created_at` timestamp
-- **Impact**: No audit trail for when records were created
-- **Proposal**: Add `created_at` with default to all tables
-- **Risk if not fixed**: Limited audit capability
-- **Complexity**: Low
-
-#### 20. Add CHECK constraints for data integrity
-- **Problem**: Missing CHECK constraints for ranges and formats
-- **Impact**: Invalid data can be stored
-- **Proposal**: Add CHECK for score ranges, group_name format, etc.
-- **Risk if not fixed**: Data quality issues
-- **Complexity**: Low
-
-#### 21. Remove derived columns (if not performance-critical)
-- **Problem**: Some columns can be computed from others
-- **Impact**: Data redundancy, potential inconsistency
-- **Proposal**: Evaluate and remove `predicted_winner`, `matches.winner`, `stage` in predictions/scores
-- **Risk if not fixed**: None (if not performance-critical)
-- **Complexity**: Medium (need to update queries)
-
-#### 22. Document cache invalidation strategy
-- **Problem**: No clear strategy for when to recalculate scores
-- **Impact**: Stale data possible
-- **Proposal**: Document triggers and manual recalculation processes
-- **Risk if not fixed**: Stale data in production
-- **Complexity**: Low
-
-#### 23. Add constraints to ensure exactly one active rule
-- **Problem**: Can have multiple active rules or none
-- **Impact**: Unclear which rules apply
-- **Proposal**: Add partial UNIQUE index on `is_active` where true
-- **Risk if not fixed**: Confusion over scoring rules
-- **Complexity**: Low
-
-#### 24. Rename `rules` table
-- **Problem**: Singular name inconsistent with other tables
-- **Impact**: Minor inconsistency
-- **Proposal**: Rename to `scoring_rules`
-- **Risk if not fixed**: None (cosmetic)
-- **Complexity**: Medium (requires migration)
+#### Index redondants
+- Évaluer si les index simples `predictions.user_id`, `predictions.match_id` sont nécessaires (couverts par l'index composite)
+- Évaluer si les index simples `user_scores.user_id`, `user_scores.match_id` sont nécessaires (couverts par l'index composite)
 
 ---
 
-### P3 - Comfort / Cleanup
+## Résumé
 
-#### 25. Add COMMENTS to all functions
-- **Problem**: Functions lack documentation
-- **Impact**: Harder to understand code
-- **Proposal**: Add COMMENT ON FUNCTION for each function
-- **Risk if not fixed**: Maintenance burden
-- **Complexity**: Low
+### Nombre de problèmes par gravité
+- **P0 (Critiques)**: 3 problèmes
+- **P1 (Importants)**: 4 problèmes
+- **P2 (Améliorations)**: 3 problèmes
+- **P3 (Dette technique)**: 4 problèmes
 
-#### 26. Add COMMENTS to all complex views
-- **Problem**: Complex views lack documentation
-- **Impact**: Harder to understand logic
-- **Proposal**: Add COMMENT ON VIEW for complex views
-- **Risk if not fixed**: Maintenance burden
-- **Complexity**: Low
+### Sujets les plus critiques à traiter en priorité
 
-#### 27. Move validation logic to application layer
-- **Problem**: Business logic in database triggers
-- **Impact**: Harder to test, less flexible
-- **Proposal**: Move `validate_prediction` logic to TypeScript
-- **Risk if not fixed**: Testing complexity
-- **Complexity**: High
+1. **DB-001**: `matches.home_team`/`away_team` sont des text sans FK vers `teams`
+   - Impact: Duplication de données, incohérence possible, pas de validation
+   - Correction: Migration vers des FK avec backfill de données
 
-#### 28. Consider materialized views for caching
-- **Problem**: Cache tables require manual invalidation
-- **Impact**: Maintenance burden
-- **Proposal**: Evaluate materialized views with refresh strategies
-- **Risk if not fixed**: Maintenance burden
-- **Complexity**: High
+2. **DB-002**: `competition_results.stage` est un text avec CHECK, pas d'enum
+   - Impact: Incohérence de types, perte d'information, maintenance difficile
+   - Correction: Migration vers un enum
 
----
+3. **DB-003**: `competition_results.group_name` sans validation
+   - Impact: Pas de validation, incohérence possible
+   - Correction: Ajout de contrainte CHECK ou enum
 
-## 13. Safe Cleanup Candidates
+4. **DB-005**: `competition_predictions_with_users` expose les emails
+   - Impact: Fuite de données personnelles, problème RGPD
+   - Correction: Retirer l'email de la vue
 
-### Can Be Removed With Low Risk
+5. **DB-006**: `user_prediction_tracking` utilise un CROSS JOIN
+   - Impact: Performance, scalabilité
+   - Correction: Refondre la vue ou utiliser une table matérialisée
 
-1. **`leaderboard_view`** - Documented as obsolete in AGENTS.md
-   - Verification needed: Search codebase for references
-   - Action: Remove if no references found
+### Incohérences potentiellement dangereuses pour la prod
 
-2. **Redundant indexes** (after verification):
-   - `predictions_user_id_idx`
-   - `predictions_match_id_idx`
-   - `user_scores_user_id_idx`
-   - `user_scores_match_id_idx`
-   - `competition_leaderboard_user_id_idx`
-   - Verification needed: Check EXPLAIN ANALYZE for queries
-   - Action: Remove if query plans show they're not used
+1. **DB-001**: Duplication de noms d'équipes en text vs références teams
+   - Risque: Matchs avec des noms d'équipes qui n'existent pas, calculs de scores incorrects
 
-3. **Redundant SELECT policies**:
-   - Duplicate SELECT policies on `matches`, `user_scores`, `users_profiles`
-   - Verification needed: Confirm most permissive policy covers all cases
-   - Action: Consolidate to single policy per table
+2. **DB-005**: Exposition des emails dans la vue `competition_predictions_with_users`
+   - Risque: Fuite de données personnelles, problème de conformité RGPD
 
-### Requires Verification Before Removal
+3. **DB-006**: CROSS JOIN dans `user_prediction_tracking`
+   - Risque: Performance dégradée, timeout, impact sur l'expérience admin
 
-1. **`competition_predictions_with_users`** view
-   - Status: No usage found in initial scan
-   - Verification needed: Full codebase search
-   - Action: Remove if truly unused
+4. **DB-007**: JSON sans validation de structure
+   - Risque: Insertion de JSON malformés qui cassent le front, erreurs runtime
 
-2. **`user_scores_computed_at_idx`**
-   - Status: Unclear if used
-   - Verification needed: Check query plans for time-based filters
-   - Action: Remove if not used
-
-### Should Be Refactored (Not Removed)
-
-1. **`user_prediction_tracking`** view
-   - Status: Too complex, fragile
-   - Action: Refactor to simpler structure or move to application layer
-   - Do not remove without replacement (used by admin UI)
-
-### Should Be Clarified (Not Removed)
-
-1. **`competition_visibility_settings`** table
-   - Status: Design unclear (singleton vs per-user)
-   - Action: Clarify design intent and document
-   - Do not remove without understanding usage
+5. **DB-003**: `competition_results.group_name` sans validation
+   - Risque: Incohérence entre `competition_results` et `teams`, erreurs de calcul
 
 ---
 
-## Conclusion
+## 7. Business & Product Analysis
 
-This database audit reveals a **functional but immature** schema with several critical security and integrity issues that should be addressed:
+Cette section analyse la pertinence métier du modèle de données, sa cohérence avec les fonctionnalités du produit, et son évolutivité fonctionnelle.
 
-**Immediate Actions (P0)**:
-1. Enable RLS on `competition_leaderboard`
-2. Fix duplicate function definition
-3. Plan migration for team FKs
-4. Add missing UNIQUE constraints
-5. Clarify singleton table design
+### 7.1 Table-by-table business relevance
 
-**Short-term Actions (P1)**:
-1. Standardize enum usage
-2. Remove obsolete elements
-3. Add version tracking to caches
-4. Improve validation
-5. Review security model
+#### users_profiles
+**Rôle métier**: Profil utilisateur avec identité et permissions admin
+**Indispensable**: ✅ OUI
+**Séparation**: Bien séparée de `auth.users` (Supabase Auth) pour stocker les métadonnées métier
+**Utilisation**: Correctement utilisée pour l'affichage leaderboard, la gestion admin, et les prédictions
+**Adaptation features actuelles**: Adaptée, avec `nickname` pour l'affichage public et `is_admin` pour la gestion
+**Futur**: Peut nécessiter d'autres métadonnées (avatar, préférences, stats historiques)
 
-**Long-term Actions (P2-P3)**:
-1. Remove redundancy
-2. Improve documentation
-3. Consider architectural changes (materialized views, logic layering)
+**Verdict**: "utile et nécessaire" - Modèle simple et efficace pour les besoins actuels
 
-The database is **production-ready only if P0 issues are addressed**. The current state poses security risks (missing RLS) and data integrity risks (missing constraints, weak referential integrity).
+---
 
-**Overall Assessment**: 6/10 - Functional but needs significant hardening for production use.
+#### matches
+**Rôle métier**: Matchs de la coupe du monde avec scores et résultats
+**Indispensable**: ✅ OUI - Cœur du produit
+**Séparation**: Bien séparée mais **problème métier majeur**: `home_team`/`away_team` sont des text sans FK vers `teams`
+**Utilisation**: Correctement utilisée par `predictions` et `user_scores`
+**Adaptation features actuelles**: Adaptée mais la duplication de noms d'équipes est un problème métier (DB-001)
+**Futur**: Si on ajoute des features comme "parcours d'une équipe", "stats par équipe", le modèle actuel sera très limitant
+
+**Verdict**: "utile mais simplifiable" - Structure de base correcte mais la duplication de noms d'équipes est une dette métier importante
+
+---
+
+#### predictions
+**Rôle métier**: Prédictions de matchs par utilisateur
+**Indispensable**: ✅ OUI - Cœur du produit
+**Séparation**: Bien séparée avec FK claires vers `auth.users` et `matches`
+**Utilisation**: Correctement utilisée avec validation trigger (`validate_prediction`)
+**Adaptation features actuelles**: Adaptée pour les pronostics de matchs
+**Futur**: Si on veut ajouter des features comme "prédictions de buteurs", "prédictions de corners", le modèle actuel devra être étendu
+
+**Verdict**: "utile et nécessaire" - Modèle clair et bien pensé pour les prédictions de matchs
+
+---
+
+#### user_scores
+**Rôle métier**: Scores calculés par match pour chaque utilisateur
+**Indispensable**: ⚠️ PARTIEL - C'est une table de cache/agrégation
+**Séparation**: Séparée mais fait doublon avec `competition_leaderboard` (agrégation à différents niveaux)
+**Utilisation**: Utilisée pour le leaderboard global mais la logique de calcul est dans le code TypeScript (`lib/scoringEngine.ts`)
+**Adaptation features actuelles**: Adaptée mais la séparation entre `user_scores` (matchs) et `competition_leaderboard` (compétition) peut être confuse
+**Futur**: Si on ajoute d'autres types de scores (bonus, streaks, etc.), la logique d'agrégation deviendra complexe
+
+**Verdict**: "utile mais simplifiable" - Table de cache nécessaire mais la logique d'agrégation est éclatée entre plusieurs tables
+
+---
+
+#### competition_predictions
+**Rôle métier**: Prédictions de compétition (groupes, phases finales) par utilisateur
+**Indispensable**: ✅ OUI - Feature spécifique importante
+**Séparation**: Bien séparée avec contrainte UNIQUE sur `user_id` (une prédiction de compétition par utilisateur)
+**Utilisation**: Correctement utilisée avec JSON structuré pour les prédictions de groupes et phases finales
+**Adaptation features actuelles**: Adaptée pour les prédictions de compétition actuelles
+**Futur**: Si on veut ajouter d'autres types de prédictions de compétition (top scorer, golden boot, etc.), le JSON sera plus complexe
+
+**Verdict**: "utile et nécessaire" - Modèle bien pensé pour les prédictions de compétition avec JSON flexible
+
+---
+
+#### competition_results
+**Rôle métier**: Résultats officiels du tournoi (groupes, phases finales)
+**Indispensable**: ✅ OUI - Nécessaire pour calculer les scores de compétition
+**Séparation**: Bien séparée avec FK vers `teams`
+**Utilisation**: Correctement utilisée par `recalculateCompetition.ts`
+**Adaptation features actuelles**: Adaptée mais **problème métier**: `stage` est un text avec CHECK limité à 3 valeurs (`groups`, `semi_final`, `final`) alors que l'enum `match_stage` a plus de valeurs (DB-002)
+**Futur**: Si on veut tracker tous les rounds (round_of_16, quarter_final, third_place), le modèle actuel ne le supporte pas
+
+**Verdict**: "utile mais simplifiable" - Structure correcte mais limitée par le manque de stages complets
+
+---
+
+#### competition_leaderboard
+**Rôle métier**: Classement agrégé de la compétition (groupes + phases finales)
+**Indispensable**: ⚠️ PARTIEL - C'est une table de cache/agrégation
+**Séparation**: Séparée mais fait doublon avec `user_scores` (agrégation à différents niveaux)
+**Utilisation**: Correctement utilisée pour le leaderboard de compétition
+**Adaptation features actuelles**: Adaptée pour les features actuelles
+**Futur**: Si on ajoute d'autres types de classements (par groupe, par phase, par région), le modèle actuel devra être étendu
+
+**Verdict**: "utile mais complexité excessive pour la valeur métier" - Table de cache nécessaire mais la duplication avec `user_scores` crée de la confusion
+
+---
+
+#### rules
+**Rôle métier**: Règles de scoring dynamiques
+**Indispensable**: ✅ OUI - Permet de modifier les règles sans code
+**Séparation**: Bien séparée avec JSON flexible pour les règles
+**Utilisation**: Correctement utilisée par `lib/scoringEngine.ts`
+**Adaptation features actuelles**: Adaptée pour les règles actuelles
+**Futur**: Si on veut ajouter d'autres types de règles (bonus, pénalités, streaks), le JSON sera plus complexe
+
+**Verdict**: "utile et nécessaire" - Modèle flexible et bien pensé pour les règles dynamiques
+
+---
+
+#### teams
+**Rôle métier**: Équipes participantes avec groupe et FIFA code
+**Indispensable**: ✅ OUI - Référence pour les matchs et résultats
+**Séparation**: Bien séparée mais **problème métier majeur**: pas utilisée par `matches` (DB-001)
+**Utilisation**: Utilisée par `competition_results` mais sous-exploitée par `matches`
+**Adaptation features actuelles**: Partiellement adaptée - devrait être la source de vérité pour les équipes
+**Futur**: Si on ajoute des features comme "stats par équipe", "parcours d'une équipe", le modèle actuel devra être relié à `matches`
+
+**Verdict**: "utile mais sous-exploitée" - Table indispensable mais mal intégrée avec `matches`
+
+---
+
+#### competition_visibility_settings
+**Rôle métier**: Settings globaux pour la visibilité des prédictions de compétition
+**Indispensable**: ⚠️ PARTIEL - Singleton pour configurer l'UI
+**Séparation**: Bien séparée comme singleton global
+**Utilisation**: Correctement utilisée pour contrôler l'affichage des prédictions
+**Adaptation features actuelles**: Adaptée pour les features actuelles
+**Futur**: Si on ajoute d'autres settings globaux (deadlines, notifications, etc.), le modèle actuel devra être étendu
+
+**Verdict**: "utile mais simplifiable" - Singleton fonctionnel mais pourrait être plus généralisé pour d'autres settings
+
+---
+
+### 7.2 Feature mapping (tables ↔ fonctionnalités)
+
+#### Pronostics de matchs
+**Tables utilisées**: `matches`, `predictions`, `user_scores`, `rules`
+**Complexité**: Moyenne - 4 tables impliquées, logique de scoring dans le code TypeScript
+**Duplication**: Pas de duplication significative
+**Logique**: Bien répartie - `matches` pour les données, `predictions` pour les user inputs, `user_scores` pour les résultats, `rules` pour la logique de scoring
+
+**Verdict**: Cohérent et bien pensé
+
+---
+
+#### Score en live
+**Tables utilisées**: `matches`, `predictions`, `user_scores`
+**Complexité**: Moyenne - Les scores sont recalculés via API (`/api/recalculate-scores`)
+**Duplication**: `user_scores` est une table de cache, donc duplication intentionnelle
+**Logique**: Scores calculés dans le code TypeScript (`lib/scoringEngine.ts`) puis stockés dans `user_scores`
+
+**Verdict**: Cohérent mais dépend de la fréquence de recalcul
+
+---
+
+#### Leaderboard global
+**Tables utilisées**: `users_profiles`, `user_scores`, `leaderboard_detailed_view`
+**Complexité**: Faible - Vue `leaderboard_detailed_view` agrège tout
+**Duplication**: La vue calcule à la volée, pas de duplication
+**Logique**: Vue bien conçue avec stats détaillées (exact_score_count, correct_predictions_count)
+
+**Verdict**: Cohérent et bien pensé
+
+---
+
+#### Leaderboard compétition
+**Tables utilisées**: `competition_predictions`, `competition_results`, `competition_leaderboard`, `leaderboard_detailed_view`
+**Complexité**: Moyenne - 4 tables impliquées, logique de scoring dans le code TypeScript (`lib/scoring/simpleScoring.ts`)
+**Duplication**: `competition_leaderboard` est une table de cache, donc duplication intentionnelle
+**Logique**: Scores calculés dans le code TypeScript puis stockés dans `competition_leaderboard`
+
+**Verdict**: Cohérent mais complexité due à la séparation match/compétition
+
+---
+
+#### Pronostics de compétition (groupes / phases finales)
+**Tables utilisées**: `competition_predictions`, `competition_results`, `teams`
+**Complexité**: Faible - 3 tables, JSON structuré pour les prédictions
+**Duplication**: Pas de duplication significative
+**Logique**: JSON flexible dans `competition_predictions` pour supporter différents types de prédictions
+
+**Verdict**: Cohérent et bien pensé
+
+---
+
+#### Tracking utilisateur / progression
+**Tables utilisées**: `users_profiles`, `predictions`, `competition_predictions`, `user_prediction_tracking` (vue)
+**Complexité**: Élevée - Vue `user_prediction_tracking` avec CROSS JOIN potentiellement lent (DB-006)
+**Duplication**: Vue calcule à la volée, pas de duplication
+**Logique**: Vue complexe pour calculer la continuité des prédictions
+
+**Verdict**: Cohérent mais problème de performance (CROSS JOIN)
+
+---
+
+#### Règles de scoring dynamiques
+**Tables utilisées**: `rules`
+**Complexité**: Faible - 1 table avec JSON flexible
+**Duplication**: Pas de duplication
+**Logique**: JSON flexible permet de modifier les règles sans changer le schéma
+
+**Verdict**: Cohérent et bien pensé
+
+---
+
+### 7.3 Redondances et complexité inutile
+
+#### Redondances identifiées
+
+1. **`competition_leaderboard` vs `user_scores`**
+   - **Problème**: Deux tables de cache pour des scores à différents niveaux (match vs compétition)
+   - **Impact**: Confusion sur la source de vérité, duplication de logique d'agrégation
+   - **Verdict**: "complexité excessive pour la valeur métier" - Pourrait être unifié ou clarifié
+
+2. **`leaderboard_view` vs `leaderboard_detailed_view`**
+   - **Problème**: Deux vues similaires, une obsolète (DB-004)
+   - **Impact**: Confusion pour les développeurs, maintenance inutile
+   - **Verdict**: "probablement inutile / redondant" - Supprimer `leaderboard_view`
+
+3. **`matches.home_team`/`away_team` vs `teams`**
+   - **Problème**: Duplication de noms d'équipes en text vs références teams (DB-001)
+   - **Impact**: Incohérence possible, pas de validation, jointures inefficaces
+   - **Verdict**: "dette produit" - Migration nécessaire vers FK vers `teams`
+
+4. **`competition_results.stage` vs `match_stage` enum**
+   - **Problème**: Incohérence de types (text avec CHECK vs enum) (DB-002)
+   - **Impact**: Perte d'information, maintenance difficile
+   - **Verdict**: "dette produit" - Unifier les types
+
+---
+
+#### Complexité inutile
+
+1. **`user_prediction_tracking` avec CROSS JOIN**
+   - **Problème**: CROSS JOIN crée un produit cartésien (DB-006)
+   - **Impact**: Performance dégradée avec beaucoup d'utilisateurs/matchs
+   - **Verdict**: "complexité excessive pour la valeur métier" - Refondre la vue
+
+2. **`competition_visibility_settings` comme singleton**
+   - **Problème**: Pas de contrainte pour garantir l'unicité
+   - **Impact**: Possibilité d'avoir plusieurs rows
+   - **Verdict**: "utile mais simplifiable" - Ajouter une contrainte d'unicité
+
+3. **JSON sans validation de structure**
+   - **Problème**: `breakdown_json`, `predictions_json`, `rules_json` sans validation (DB-007)
+   - **Impact**: Erreurs runtime possibles, difficulté à debugger
+   - **Verdict**: "dette produit" - Ajouter des contraintes CHECK ou un schéma JSON
+
+---
+
+### 7.4 Product clarity score
+
+**Score global de clarté**: 6/10
+
+**Justification**:
+
+**Points positifs**:
+- ✅ Noms de tables clairs et cohérents
+- ✅ Séparation logique entre données métier, configuration, et cache
+- ✅ FK bien définies vers `auth.users`
+- ✅ RLS activé sur toutes les tables
+- ✅ Vue `leaderboard_detailed_view` bien conçue pour l'affichage
+
+**Points négatifs**:
+- 🔴 Duplication de noms d'équipes en text vs références teams (DB-001) - 2 points
+- 🔴 Incohérence de types entre `competition_results.stage` et `match_stage` (DB-002) - 1 point
+- 🟡 Deux tables de cache (`user_scores`, `competition_leaderboard`) créent de la confusion - 0.5 point
+- 🟡 Vue `leaderboard_view` obsolète et non utilisée (DB-004) - 0.5 point
+
+**Analyse pour un nouveau développeur**:
+- Le flow "match → prediction → score → leaderboard" est globalement clair
+- La séparation entre scores de matchs (`user_scores`) et scores de compétition (`competition_leaderboard`) peut être confuse
+- La duplication de noms d'équipes est counter-intuitive pour un nouveau dev
+- Les vues sont bien documentées mais l'existence de deux vues leaderboard est confuse
+
+**Recommandation pour améliorer la clarté**:
+1. Unifier les types de stages (DB-002)
+2. Migrer `matches.home_team`/`away_team` vers FK vers `teams` (DB-001)
+3. Supprimer `leaderboard_view` (DB-004)
+4. Clarifier la distinction entre `user_scores` et `competition_leaderboard` dans la documentation
+
+---
+
+### 7.5 Product debt & scalability risks
+
+#### Dette produit identifiée
+
+1. **Duplication de noms d'équipes (DB-001)**
+   - **Risque**: Si on ajoute des features comme "parcours d'une équipe", "stats par équipe", le modèle actuel sera très limitant
+   - **Coût de changement**: Élevé - Nécessite une migration avec backfill de données
+   - **Impact métier**: Bloque l'ajout de features liées aux équipes
+
+2. **Incohérence de types de stages (DB-002)**
+   - **Risque**: Si on veut tracker tous les rounds (round_of_16, quarter_final, third_place), le modèle actuel ne le supporte pas
+   - **Coût de changement**: Moyen - Migration de type si compatible
+   - **Impact métier**: Bloque l'ajout de rounds intermédiaires dans `competition_results`
+
+3. **Table de cache `competition_leaderboard`**
+   - **Risque**: Si on ajoute d'autres types de classements (par groupe, par phase, par région), le modèle actuel devra être étendu
+   - **Coût de changement**: Moyen - Refactor de la logique d'agrégation
+   - **Impact métier**: Le modèle actuel est trop spécifique au leaderboard global
+
+4. **JSON sans validation (DB-007)**
+   - **Risque**: Si on ajoute de nouveaux champs dans les JSON, le code qui les lit peut échouer
+   - **Coût de changement**: Faible - Ajout de contraintes CHECK
+   - **Impact métier**: Erreurs runtime possibles, difficulté à debugger
+
+---
+
+#### Risques d'évolutivité
+
+1. **Scalabilité des prédictions**
+   - **Risque**: Avec beaucoup d'utilisateurs et de matchs, la table `predictions` peut devenir très large
+   - **Mitigation**: Index sur `(user_id, match_id)` déjà en place
+   - **Verdict**: Gérable pour l'échelle actuelle
+
+2. **Scalabilité du leaderboard**
+   - **Risque**: La vue `leaderboard_detailed_view` calcule à la volée, peut être lente avec beaucoup d'utilisateurs
+   - **Mitigation**: Table de cache `competition_leaderboard` pour la compétition, mais pas pour les matchs
+   - **Verdict**: Risque moyen - Considérer une table de cache pour le leaderboard global
+
+3. **Scalabilité du tracking**
+   - **Risque**: La vue `user_prediction_tracking` avec CROSS JOIN peut être très lente (DB-006)
+   - **Mitigation**: Refondre la vue ou utiliser une table matérialisée
+   - **Verdict**: Risque élevé - Action nécessaire
+
+4. **Scalabilité des règles**
+   - **Risque**: Le JSON flexible dans `rules` peut devenir complexe avec beaucoup de règles
+   - **Mitigation**: Documenter la structure attendue, ajouter des contraintes CHECK
+   - **Verdict**: Gérable avec une bonne documentation
+
+---
+
+#### Zones où un changement métier sera coûteux
+
+1. **Changement de la structure des prédictions de compétition**
+   - **Coût**: Élevé - JSON stocké dans `competition_predictions`, nécessite une migration
+   - **Impact**: Toutes les prédictions existantes doivent être migrées
+
+2. **Changement de la logique de scoring**
+   - **Coût**: Moyen - Logique dans le code TypeScript (`lib/scoringEngine.ts`), mais nécessite un recalcul des scores
+   - **Impact**: Tous les scores doivent être recalculés
+
+3. **Ajout de nouveaux types de scores**
+   - **Coût**: Moyen - Nécessite d'ajouter des colonnes dans `user_scores` et `competition_leaderboard`
+   - **Impact**: Migration de schéma, recalcul des scores
+
+4. **Changement de la structure des équipes**
+   - **Coût**: Élevé - Si on migre `matches.home_team`/`away_team` vers FK vers `teams`, nécessite un backfill de données
+   - **Impact**: Toutes les requêtes, vues et fonctions qui utilisent ces colonnes doivent être mises à jour
+
+---
+
+#### Zones où le modèle est trop rigide
+
+1. **`competition_results.stage` limité à 3 valeurs**
+   - **Problème**: Ne supporte pas round_of_16, quarter_final, third_place
+   - **Impact**: Impossible de tracker tous les rounds
+   - **Solution**: Migrer vers un enum plus complet
+
+2. **`competition_leaderboard` trop spécifique**
+   - **Problème**: Structure spécifique au leaderboard global (group_points, knockout_points)
+   - **Impact**: Difficile d'ajouter d'autres types de classements
+   - **Solution**: Généraliser la structure ou créer des tables spécifiques pour chaque type de classement
+
+3. **`user_scores` sans lien vers `rules`**
+   - **Problème**: Impossible de savoir quelles règles ont été utilisées pour calculer un score
+   - **Impact**: Difficile de recalculer les scores avec des règles différentes
+   - **Solution**: Ajouter une colonne `rules_id` ou stocker une version des règles
+
+---
+
+#### Zones où le modèle est trop couplé
+
+1. **`user_scores` couplé à `matches`**
+   - **Problème**: Un score est toujours lié à un match
+   - **Impact**: Difficile d'ajouter des scores qui ne sont pas liés à des matchs (bonus, pénalités, etc.)
+   - **Solution**: Découpler `user_scores` de `matches` ou créer une table séparée pour les bonus
+
+2. **`competition_leaderboard` couplé à la structure actuelle**
+   - **Problème**: Structure spécifique (group_points, knockout_points)
+   - **Impact**: Difficile d'ajouter d'autres types de points
+   - **Solution**: Généraliser la structure ou utiliser un JSON flexible
+
+---
+
+### Conclusion business
+
+Le modèle de données est **globalement bien pensé** pour un produit de pronostics sportif, mais présente quelques **dette produit** importantes:
+
+**Points forts**:
+- Séparation claire des responsabilités (données métier, configuration, cache)
+- RLS activé sur toutes les tables
+- Vue `leaderboard_detailed_view` bien conçue
+- Règles de scoring dynamiques flexibles
+
+**Points faibles**:
+- Duplication de noms d'équipes (DB-001) - Dette produit majeure
+- Incohérence de types de stages (DB-002) - Dette produit moyenne
+- Deux tables de cache créent de la confusion
+- Vue `leaderboard_view` obsolète (DB-004)
+- CROSS JOIN dans `user_prediction_tracking` (DB-006) - Risque de performance
+
+**Recommandations prioritaires**:
+1. Migrer `matches.home_team`/`away_team` vers FK vers `teams` (DB-001)
+2. Unifier les types de stages (DB-002)
+3. Supprimer `leaderboard_view` (DB-004)
+4. Refondre `user_prediction_tracking` pour éviter le CROSS JOIN (DB-006)
+5. Ajouter des contraintes CHECK sur les JSON (DB-007)
+
+**Score global de pertinence métier**: 7/10
+- Le modèle est adapté aux features actuelles
+- Il y a quelques dette produit importantes mais gérables
+- Le modèle est évolutif mais nécessite quelques ajustements pour supporter de nouvelles features
