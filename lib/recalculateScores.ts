@@ -80,12 +80,16 @@ export async function recalculateScores(
     throw new Error(predictionsError.message);
   }
 
+  console.log(`[DEBUG] Total predictions fetched: ${predictions?.length}`);
+
   const predictionsByMatch = new Map<string, Prediction[]>();
   for (const prediction of (predictions ?? []) as Prediction[]) {
     const list = predictionsByMatch.get(prediction.match_id) ?? [];
     list.push(prediction);
     predictionsByMatch.set(prediction.match_id, list);
   }
+
+  console.log(`[DEBUG] Predictions by match:`, Array.from(predictionsByMatch.entries()).map(([matchId, preds]) => ({ matchId, count: preds.length })));
 
   const rowsToUpsert: Array<{
     user_id: string;
@@ -113,6 +117,8 @@ export async function recalculateScores(
     processedMatches += 1;
     const matchPredictions = predictionsByMatch.get(match.id) ?? [];
 
+    console.log(`[DEBUG] Match ${match.id}: ${matchPredictions.length} predictions`);
+
     for (const prediction of matchPredictions) {
       const { score, breakdown } = computePredictionScore(
         match,
@@ -131,14 +137,18 @@ export async function recalculateScores(
     }
   }
 
+  console.log(`[DEBUG] Total rows to upsert: ${rowsToUpsert.length}`);
+
   if (rowsToUpsert.length === 0) {
     return { processedMatches, skippedMatches, upsertedScores: 0 };
   }
 
-  const { error: upsertError } = await supabase.from("user_scores").upsert(
+  const { error: upsertError, count } = await supabase.from("user_scores").upsert(
     rowsToUpsert,
-    { onConflict: "user_id,match_id" }
+    { onConflict: "user_id,match_id", count: "exact" }
   );
+
+  console.log(`[DEBUG] Upsert result: count=${count}, error=${upsertError?.message}`);
 
   if (upsertError) {
     throw new Error(upsertError.message);
