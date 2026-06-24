@@ -24,22 +24,38 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch visibility settings" }, { status: 500 });
   }
 
-  // Fetch all competition predictions with user data using the view
-  const { data: predictions, error: predictionsError } = await supabase
-    .from("competition_predictions_with_users")
-    .select("*")
-    .order("total_points", { ascending: false, nullsFirst: false });
+  // Fetch all competition predictions with user data using the view (pagination to avoid 1000 row limit)
+  const allPredictions: unknown[] = [];
+  const batchSize = 1000;
+  let from = 0;
+  let hasMore = true;
 
-  if (predictionsError) {
-    console.error("Error fetching competition predictions:", predictionsError);
-    return NextResponse.json({ error: "Failed to fetch predictions" }, { status: 500 });
+  while (hasMore) {
+    const { data: predictionsBatch, error: predictionsError } = await supabase
+      .from("competition_predictions_with_users")
+      .select("*")
+      .order("total_points", { ascending: false, nullsFirst: false })
+      .range(from, from + batchSize - 1);
+
+    if (predictionsError) {
+      console.error("Error fetching competition predictions:", predictionsError);
+      return NextResponse.json({ error: "Failed to fetch predictions" }, { status: 500 });
+    }
+
+    if (predictionsBatch && predictionsBatch.length > 0) {
+      allPredictions.push(...predictionsBatch);
+      from += batchSize;
+      hasMore = predictionsBatch.length === batchSize;
+    } else {
+      hasMore = false;
+    }
   }
 
   // Return predictions along with visibility settings
   // The frontend will use visibility settings to decide what to display
   return NextResponse.json({
     visibility: visibilitySettings,
-    predictions: predictions || [],
+    predictions: allPredictions,
     currentUserId: user.id,
   });
 }

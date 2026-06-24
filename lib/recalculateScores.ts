@@ -69,21 +69,38 @@ export async function recalculateScores(
     }
   }
 
-  const { data: predictions, error: predictionsError } = await supabase
-    .from("predictions")
-    .select(
-      "id, user_id, match_id, predicted_home_score, predicted_away_score, predicted_winner, created_at"
-    )
-    .in("match_id", matchIds);
+  // Fetch all predictions using pagination to avoid Supabase's 1000 row limit
+  const allPredictions: Prediction[] = [];
+  const batchSize = 1000;
+  let from = 0;
+  let hasMore = true;
 
-  if (predictionsError) {
-    throw new Error(predictionsError.message);
+  while (hasMore) {
+    const { data: predictionsBatch, error: predictionsError } = await supabase
+      .from("predictions")
+      .select(
+        "id, user_id, match_id, predicted_home_score, predicted_away_score, predicted_winner, created_at"
+      )
+      .in("match_id", matchIds)
+      .range(from, from + batchSize - 1);
+
+    if (predictionsError) {
+      throw new Error(predictionsError.message);
+    }
+
+    if (predictionsBatch && predictionsBatch.length > 0) {
+      allPredictions.push(...(predictionsBatch as Prediction[]));
+      from += batchSize;
+      hasMore = predictionsBatch.length === batchSize;
+    } else {
+      hasMore = false;
+    }
   }
 
-  console.log(`[DEBUG] Total predictions fetched: ${predictions?.length}`);
+  console.log(`[DEBUG] Total predictions fetched: ${allPredictions.length}`);
 
   const predictionsByMatch = new Map<string, Prediction[]>();
-  for (const prediction of (predictions ?? []) as Prediction[]) {
+  for (const prediction of allPredictions) {
     const list = predictionsByMatch.get(prediction.match_id) ?? [];
     list.push(prediction);
     predictionsByMatch.set(prediction.match_id, list);

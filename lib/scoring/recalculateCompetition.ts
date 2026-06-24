@@ -58,18 +58,34 @@ export async function recalculateCompetitionScores(
       throw new Error("No teams found");
     }
 
-    // Fetch all competition predictions
-    const { data: predictions, error: predictionsError } = await supabase
-      .from("competition_predictions")
-      .select("user_id, predictions_json");
+    // Fetch all competition predictions using pagination to avoid Supabase's 1000 row limit
+    const allPredictions: Array<{ user_id: string; predictions_json: unknown }> = [];
+    const batchSize = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (predictionsError) {
-      throw new Error(`Failed to fetch predictions: ${predictionsError.message}`);
+    while (hasMore) {
+      const { data: predictionsBatch, error: predictionsError } = await supabase
+        .from("competition_predictions")
+        .select("user_id, predictions_json")
+        .range(from, from + batchSize - 1);
+
+      if (predictionsError) {
+        throw new Error(`Failed to fetch predictions: ${predictionsError.message}`);
+      }
+
+      if (predictionsBatch && predictionsBatch.length > 0) {
+        allPredictions.push(...predictionsBatch);
+        from += batchSize;
+        hasMore = predictionsBatch.length === batchSize;
+      } else {
+        hasMore = false;
+      }
     }
 
-    if (!predictions || predictions.length === 0) {
+    if (allPredictions.length === 0) {
       return {
-        usersProcessed: predictions?.length ?? 0,
+        usersProcessed: 0,
         scoresUpdated: 0,
         processedMatches,
       };
@@ -82,7 +98,7 @@ export async function recalculateCompetitionScores(
     const leaderboardRows: LeaderboardRowInput[] = [];
     const now = new Date().toISOString();
 
-    for (const prediction of predictions as Array<{ user_id: string; predictions_json: unknown }>) {
+    for (const prediction of allPredictions) {
       const userScore = calculateUserScore(
         prediction.predictions_json as { groups: Record<string, { first: string; second: string }>; semi_finalists: string[]; finalists: string[] },
         results as CompetitionResult[],
@@ -109,7 +125,7 @@ export async function recalculateCompetitionScores(
     }
 
     return {
-      usersProcessed: predictions.length,
+      usersProcessed: allPredictions.length,
       scoresUpdated: leaderboardRows.length,
       processedMatches,
     };
