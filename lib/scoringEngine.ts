@@ -161,19 +161,14 @@ function scoreKnockoutStage(
   const awayScore = match.away_score!;
   const outcome = getOutcome(homeScore, awayScore);
 
-  // In knockout, predicted outcome should be based on predicted qualifier if score is draw
-  let predictedOutcome = getOutcome(
+  // Predicted outcome is based on the predicted scores only (1N2)
+  const predictedOutcome = getOutcome(
     prediction.predicted_home_score,
     prediction.predicted_away_score
   );
 
   const actualQualifier = getQualifier(homeScore, awayScore, match.winner);
   const predictedQualifier = getPredictedQualifier(prediction, match.stage);
-
-  // If prediction is a draw with a winner pick, use the winner as the predicted outcome
-  if (predictedOutcome === "draw" && predictedQualifier) {
-    predictedOutcome = predictedQualifier === "home" ? "home" : "away";
-  }
 
   if (actualQualifier === null) {
     return {
@@ -201,22 +196,11 @@ function scoreKnockoutStage(
     };
   }
 
-  if (predictedQualifier === null || predictedQualifier !== actualQualifier) {
-    return {
-      score: 0,
-      breakdown: emptyBreakdown(outcome, predictedOutcome),
-    };
-  }
-
   const homeExact = homeScore === prediction.predicted_home_score;
   const awayExact = awayScore === prediction.predicted_away_score;
 
-  // In knockout, we only give points for correct qualifier, not for "correct 1N2" based on scores
-  // The base points (correct_1N2) should only be given if the score-based prediction was actually correct
-  const scoreBasedOutcomeCorrect = outcome === getOutcome(
-    prediction.predicted_home_score,
-    prediction.predicted_away_score
-  );
+  // Calculate score-based outcome (1N2 based on the actual scores, not the qualifier)
+  const scoreBasedOutcomeCorrect = outcome === predictedOutcome;
 
   // Use the appropriate exact score rule based on whether the score-based outcome was correct
   // If the wrong_1N2 rule doesn't exist (for backward compatibility), use the correct_1N2 rule
@@ -224,11 +208,22 @@ function scoreKnockoutStage(
     ? rules.exact_score_per_team_if_correct_1N2
     : (rules.exact_score_per_team_if_wrong_1N2 || rules.exact_score_per_team_if_correct_1N2);
 
+  // Calculate points for each category independently
+  // 1. Points for correct 1N2 (based on score)
+  const basePoints = scoreBasedOutcomeCorrect ? rules.correct_1N2 : rules.incorrect_1N2;
+
+  // 2. Points for exact scores (independent of qualifier)
+  const homeExactBonus = homeExact ? exactScoreRule : 0;
+  const awayExactBonus = awayExact ? exactScoreRule : 0;
+
+  // 3. Points for correct qualifier (independent of score)
+  const qualifiedBonus = (predictedQualifier === actualQualifier) ? rules.correct_qualified_bonus : 0;
+
   const breakdown: ScoreBreakdown = {
-    base: scoreBasedOutcomeCorrect ? rules.correct_1N2 : 0,
-    home_exact_bonus: homeExact ? exactScoreRule : 0,
-    away_exact_bonus: awayExact ? exactScoreRule : 0,
-    qualified_bonus: rules.correct_qualified_bonus,
+    base: basePoints,
+    home_exact_bonus: homeExactBonus,
+    away_exact_bonus: awayExactBonus,
+    qualified_bonus: qualifiedBonus,
     outcome,
     predicted_outcome: predictedOutcome,
     correct_outcome: scoreBasedOutcomeCorrect,
