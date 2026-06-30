@@ -22,7 +22,24 @@ type CompetitionPredictionWithUser = {
   group_points: number | null;
   knockout_points: number | null;
   total_points: number | null;
-  breakdown_json: Record<string, unknown> | null;
+  breakdown_json: {
+    groups: Record<string, {
+      details: {
+        firstPoints: number;
+        secondPoints: number;
+      };
+    }>;
+    semiFinalists: {
+      details: {
+        teamPoints: Record<string, number>;
+      };
+    };
+    finalists: {
+      details: {
+        teamPoints: Record<string, number>;
+      };
+    };
+  } | null;
 };
 
 type CompetitionComparisonViewProps = {
@@ -54,6 +71,26 @@ function PointsBadge({ points, maxPoints = 36 }: { points: number | null; maxPoi
       className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${getBadgeColor(points)}`}
     >
       {getPointsLabel(points)}
+    </span>
+  );
+}
+
+function TeamPointsBadge({ points }: { points: number | null }) {
+  if (points === null) {
+    return <span className="text-zinc-400 text-xs">—</span>;
+  }
+
+  const getBadgeColor = (pts: number) => {
+    if (pts === 0) return "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300 border-rose-200 dark:border-rose-800";
+    if (pts === 1) return "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-300 border-orange-200 dark:border-orange-800";
+    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${getBadgeColor(points)}`}
+    >
+      {points}
     </span>
   );
 }
@@ -163,8 +200,6 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
     });
   };
 
-  const hasGroupPoints = data?.predictions.some(p => p.group_points !== null) ?? false;
-
   if (loading) {
     return (
       <Card>
@@ -247,15 +282,16 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                         <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
                         <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">1er</th>
                         <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">2e</th>
-                        {hasGroupPoints && (
-                          <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Points</th>
-                        )}
                       </tr>
                     </thead>
                     <tbody>
                       {sortedPredictions.map((prediction) => {
                         const selection = prediction.predictions_json.groups[group] || { first: "", second: "" };
                         if (!selection.first && !selection.second) return null;
+
+                        const groupBreakdown = prediction.breakdown_json?.groups?.[group];
+                        const firstPoints = groupBreakdown?.details?.firstPoints ?? null;
+                        const secondPoints = groupBreakdown?.details?.secondPoints ?? null;
 
                         return (
                           <tr
@@ -278,16 +314,17 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                               )}
                             </td>
                             <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              {selection.first ? getTeamName(selection.first) : "—"}
+                              <div className="flex items-center gap-2">
+                                {selection.first ? getTeamName(selection.first) : "—"}
+                                {selection.first && <TeamPointsBadge points={firstPoints} />}
+                              </div>
                             </td>
                             <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              {selection.second ? getTeamName(selection.second) : "—"}
+                              <div className="flex items-center gap-2">
+                                {selection.second ? getTeamName(selection.second) : "—"}
+                                {selection.second && <TeamPointsBadge points={secondPoints} />}
+                              </div>
                             </td>
-                            {hasGroupPoints && (
-                              <td className="py-2.5 px-3 text-right">
-                                <PointsBadge points={prediction.group_points} maxPoints={36} />
-                              </td>
-                            )}
                           </tr>
                         );
                       })}
@@ -301,6 +338,10 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                     const selection = prediction.predictions_json.groups[group] || { first: "", second: "" };
                     if (!selection.first && !selection.second) return null;
 
+                    const groupBreakdown = prediction.breakdown_json?.groups?.[group];
+                    const firstPoints = groupBreakdown?.details?.firstPoints ?? null;
+                    const secondPoints = groupBreakdown?.details?.secondPoints ?? null;
+
                     return (
                       <Card
                         key={prediction.user_id}
@@ -310,28 +351,31 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                             : ""
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            {isCurrentUser(prediction.user_id) ? (
-                              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                                Vous
-                              </span>
-                            ) : (
-                              <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                                {displayName(prediction)}
-                              </span>
-                            )}
-                          </div>
-                          {hasGroupPoints && (
-                            <PointsBadge points={prediction.group_points} maxPoints={36} />
+                        <div className="mb-2">
+                          {isCurrentUser(prediction.user_id) ? (
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                              Vous
+                            </span>
+                          ) : (
+                            <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                              {displayName(prediction)}
+                            </span>
                           )}
                         </div>
                         <div className="text-sm space-y-1">
-                          <div className="text-zinc-700 dark:text-zinc-300">
-                            <span className="font-medium">1er :</span> {selection.first ? getTeamName(selection.first) : "—"}
+                          <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                            <span className="font-medium">1er :</span>
+                            <div className="flex items-center gap-2">
+                              {selection.first ? getTeamName(selection.first) : "—"}
+                              {selection.first && <TeamPointsBadge points={firstPoints} />}
+                            </div>
                           </div>
-                          <div className="text-zinc-700 dark:text-zinc-300">
-                            <span className="font-medium">2e :</span> {selection.second ? getTeamName(selection.second) : "—"}
+                          <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
+                            <span className="font-medium">2e :</span>
+                            <div className="flex items-center gap-2">
+                              {selection.second ? getTeamName(selection.second) : "—"}
+                              {selection.second && <TeamPointsBadge points={secondPoints} />}
+                            </div>
                           </div>
                         </div>
                       </Card>
@@ -364,13 +408,14 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
                   <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
                   <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Sélections</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Points</th>
                 </tr>
               </thead>
               <tbody>
                 {sortByKnockoutPoints(predictions).map((prediction) => {
                   const semiFinalists = prediction.predictions_json.semi_finalists || [];
                   if (semiFinalists.length === 0 || semiFinalists.every((id) => !id)) return null;
+
+                  const semiTeamPoints = prediction.breakdown_json?.semiFinalists?.details?.teamPoints ?? {};
 
                   return (
                     <tr
@@ -393,13 +438,16 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                        {semiFinalists
-                          .filter(Boolean)
-                          .map((teamId) => getTeamName(teamId))
-                          .join(", ")}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <PointsBadge points={prediction.knockout_points} maxPoints={20} />
+                        <div className="flex flex-wrap gap-2">
+                          {semiFinalists
+                            .filter(Boolean)
+                            .map((teamId) => (
+                              <div key={teamId} className="flex items-center gap-1">
+                                {getTeamName(teamId)}
+                                <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} />
+                              </div>
+                            ))}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -414,6 +462,8 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
               const semiFinalists = prediction.predictions_json.semi_finalists || [];
               if (semiFinalists.length === 0 || semiFinalists.every((id) => !id)) return null;
 
+              const semiTeamPoints = prediction.breakdown_json?.semiFinalists?.details?.teamPoints ?? {};
+
               return (
                 <Card
                   key={prediction.user_id}
@@ -423,28 +473,29 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                       : ""
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      {isCurrentUser(prediction.user_id) ? (
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                          Vous
-                        </span>
-                      ) : (
-                        <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                          {displayName(prediction)}
-                        </span>
-                      )}
-                    </div>
-                    <PointsBadge points={prediction.knockout_points} maxPoints={20} />
+                  <div className="mb-2">
+                    {isCurrentUser(prediction.user_id) ? (
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                        Vous
+                      </span>
+                    ) : (
+                      <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                        {displayName(prediction)}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm">
                     <p className="text-zinc-600 dark:text-zinc-400 mb-1">Sélections :</p>
-                    <p className="text-zinc-700 dark:text-zinc-300">
+                    <div className="flex flex-wrap gap-2 text-zinc-700 dark:text-zinc-300">
                       {semiFinalists
                         .filter(Boolean)
-                        .map((teamId) => getTeamName(teamId))
-                        .join(", ")}
-                    </p>
+                        .map((teamId) => (
+                          <div key={teamId} className="flex items-center gap-1">
+                            {getTeamName(teamId)}
+                            <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} />
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 </Card>
               );
@@ -473,13 +524,14 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
                   <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
                   <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Sélections</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Points</th>
                 </tr>
               </thead>
               <tbody>
                 {sortByKnockoutPoints(predictions).map((prediction) => {
                   const finalists = prediction.predictions_json.finalists || [];
                   if (finalists.length === 0 || finalists.every((id) => !id)) return null;
+
+                  const finalTeamPoints = prediction.breakdown_json?.finalists?.details?.teamPoints ?? {};
 
                   return (
                     <tr
@@ -502,13 +554,16 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                        {finalists
-                          .filter(Boolean)
-                          .map((teamId) => getTeamName(teamId))
-                          .join(", ")}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <PointsBadge points={prediction.knockout_points} maxPoints={20} />
+                        <div className="flex flex-wrap gap-2">
+                          {finalists
+                            .filter(Boolean)
+                            .map((teamId) => (
+                              <div key={teamId} className="flex items-center gap-1">
+                                {getTeamName(teamId)}
+                                <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} />
+                              </div>
+                            ))}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -523,6 +578,8 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
               const finalists = prediction.predictions_json.finalists || [];
               if (finalists.length === 0 || finalists.every((id) => !id)) return null;
 
+              const finalTeamPoints = prediction.breakdown_json?.finalists?.details?.teamPoints ?? {};
+
               return (
                 <Card
                   key={prediction.user_id}
@@ -532,28 +589,29 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                       : ""
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      {isCurrentUser(prediction.user_id) ? (
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                          Vous
-                        </span>
-                      ) : (
-                        <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                          {displayName(prediction)}
-                        </span>
-                      )}
-                    </div>
-                    <PointsBadge points={prediction.knockout_points} maxPoints={20} />
+                  <div className="mb-2">
+                    {isCurrentUser(prediction.user_id) ? (
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                        Vous
+                      </span>
+                    ) : (
+                      <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                        {displayName(prediction)}
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm">
                     <p className="text-zinc-600 dark:text-zinc-400 mb-1">Sélections :</p>
-                    <p className="text-zinc-700 dark:text-zinc-300">
+                    <div className="flex flex-wrap gap-2 text-zinc-700 dark:text-zinc-300">
                       {finalists
                         .filter(Boolean)
-                        .map((teamId) => getTeamName(teamId))
-                        .join(", ")}
-                    </p>
+                        .map((teamId) => (
+                          <div key={teamId} className="flex items-center gap-1">
+                            {getTeamName(teamId)}
+                            <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} />
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 </Card>
               );
