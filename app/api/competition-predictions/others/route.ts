@@ -52,7 +52,6 @@ export async function GET() {
   }
 
   // Return predictions along with visibility settings
-  // The frontend will use visibility settings to decide what to display
   return NextResponse.json({
     visibility: visibilitySettings,
     predictions: allPredictions,

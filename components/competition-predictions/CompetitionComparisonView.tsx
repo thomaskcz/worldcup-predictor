@@ -47,6 +47,14 @@ type CompetitionComparisonViewProps = {
   teams: Team[];
   currentUserId: string;
   groupNames: string[];
+  competitionResults: Array<{
+    id: string;
+    stage: string;
+    group_name: string | null;
+    team_id: string;
+    position: number | null;
+  }>;
+  teamsMap: Map<string, Team>;
 };
 
 function PointsBadge({ points, maxPoints = 36 }: { points: number | null; maxPoints?: number }) {
@@ -100,15 +108,352 @@ function formatTeamOptionLabel(team: Team) {
   return `${team.name}${team.fifa_code ? ` (${team.fifa_code})` : ""}`;
 }
 
-export function CompetitionComparisonView({ teams, currentUserId, groupNames }: CompetitionComparisonViewProps) {
+// Component for a single group section
+function GroupSection({
+  groupName,
+  officialResults,
+  currentUserPrediction,
+  otherPredictions,
+  currentUserId,
+  teamsMap,
+}: {
+  groupName: string;
+  officialResults: { first: Team | null; second: Team | null };
+  currentUserPrediction: CompetitionPredictionWithUser | null;
+  otherPredictions: CompetitionPredictionWithUser[];
+  currentUserId: string;
+  teamsMap: Map<string, Team>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const getTeamName = (teamId: string) => {
+    const team = teamsMap.get(teamId);
+    return team ? team.name : teamId;
+  };
+
+  const selection = currentUserPrediction?.predictions_json.groups[groupName] || { first: "", second: "" };
+  const groupBreakdown = currentUserPrediction?.breakdown_json?.groups?.[groupName];
+  const firstPoints = groupBreakdown?.details?.firstPoints ?? null;
+  const secondPoints = groupBreakdown?.details?.secondPoints ?? null;
+
+  return (
+    <Card>
+      <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+        <span>🏆</span>
+        Groupe {groupName}
+      </h3>
+
+      {/* Official Results */}
+      <div className="mt-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Résultats officiels</p>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-zinc-600 dark:text-zinc-400">1er :</span>{" "}
+            <span className="font-medium text-zinc-900 dark:text-zinc-50">
+              {officialResults.first ? officialResults.first.name : "—"}
+            </span>
+          </div>
+          <div>
+            <span className="text-zinc-600 dark:text-zinc-400">2e :</span>{" "}
+            <span className="font-medium text-zinc-900 dark:text-zinc-50">
+              {officialResults.second ? officialResults.second.name : "—"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Current User Prediction */}
+      {currentUserPrediction && (
+        <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">Votre prono</p>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-700 dark:text-zinc-300">
+                {selection.first ? getTeamName(selection.first) : "—"}
+              </span>
+              {selection.first && <TeamPointsBadge points={firstPoints} />}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-700 dark:text-zinc-300">
+                {selection.second ? getTeamName(selection.second) : "—"}
+              </span>
+              {selection.second && <TeamPointsBadge points={secondPoints} />}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle button for other predictions */}
+      {otherPredictions.length > 0 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-4 text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 font-medium"
+        >
+          {expanded ? "▶ Masquer les autres pronostics" : `▶ Pronostics des autres joueurs (${otherPredictions.length})`}
+        </button>
+      )}
+
+      {/* Other predictions (accordion) */}
+      {expanded && otherPredictions.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {otherPredictions.map((prediction) => {
+            const selection = prediction.predictions_json.groups[groupName] || { first: "", second: "" };
+            if (!selection.first && !selection.second) return null;
+
+            const groupBreakdown = prediction.breakdown_json?.groups?.[groupName];
+            const firstPoints = groupBreakdown?.details?.firstPoints ?? null;
+            const secondPoints = groupBreakdown?.details?.secondPoints ?? null;
+
+            return (
+              <div
+                key={prediction.user_id}
+                className="p-3 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800"
+              >
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">
+                  {prediction.nickname || prediction.email}
+                </p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-700 dark:text-zinc-300">
+                      {selection.first ? getTeamName(selection.first) : "—"}
+                    </span>
+                    {selection.first && <TeamPointsBadge points={firstPoints} />}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-700 dark:text-zinc-300">
+                      {selection.second ? getTeamName(selection.second) : "—"}
+                    </span>
+                    {selection.second && <TeamPointsBadge points={secondPoints} />}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Component for semi-finalists section
+function SemiFinalistsSection({
+  officialResults,
+  currentUserPrediction,
+  otherPredictions,
+  teamsMap,
+}: {
+  officialResults: Team[];
+  currentUserPrediction: CompetitionPredictionWithUser | null;
+  otherPredictions: CompetitionPredictionWithUser[];
+  teamsMap: Map<string, Team>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const getTeamName = (teamId: string) => {
+    const team = teamsMap.get(teamId);
+    return team ? team.name : teamId;
+  };
+
+  const semiFinalists = currentUserPrediction?.predictions_json.semi_finalists || [];
+  const semiTeamPoints = currentUserPrediction?.breakdown_json?.semiFinalists?.details?.teamPoints ?? {};
+
+  return (
+    <Card>
+      <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+        <span>🏅</span>
+        Demi-finalistes
+      </h3>
+
+      {/* Official Results */}
+      <div className="mt-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Résultats officiels</p>
+        <div className="flex flex-wrap gap-2 text-sm">
+          {officialResults.map((team) => (
+            <span key={team.id} className="font-medium text-zinc-900 dark:text-zinc-50">
+              {team.name}
+            </span>
+          ))}
+          {officialResults.length === 0 && <span className="text-zinc-400">—</span>}
+        </div>
+      </div>
+
+      {/* Current User Prediction */}
+      {currentUserPrediction && (
+        <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">Votre prono</p>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {semiFinalists
+              .filter(Boolean)
+              .map((teamId) => (
+                <div key={teamId} className="flex items-center gap-1">
+                  <span className="text-zinc-700 dark:text-zinc-300">{getTeamName(teamId)}</span>
+                  <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} />
+                </div>
+              ))}
+            {semiFinalists.filter(Boolean).length === 0 && <span className="text-zinc-400">—</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Toggle button for other predictions */}
+      {otherPredictions.length > 0 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-4 text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 font-medium"
+        >
+          {expanded ? "▶ Masquer les autres pronostics" : `▶ Pronostics des autres joueurs (${otherPredictions.length})`}
+        </button>
+      )}
+
+      {/* Other predictions (accordion) */}
+      {expanded && otherPredictions.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {otherPredictions.map((prediction) => {
+            const semiFinalists = prediction.predictions_json.semi_finalists || [];
+            if (semiFinalists.length === 0 || semiFinalists.every((id) => !id)) return null;
+
+            const semiTeamPoints = prediction.breakdown_json?.semiFinalists?.details?.teamPoints ?? {};
+
+            return (
+              <div
+                key={prediction.user_id}
+                className="p-3 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800"
+              >
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">
+                  {prediction.nickname || prediction.email}
+                </p>
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {semiFinalists
+                    .filter(Boolean)
+                    .map((teamId) => (
+                      <div key={teamId} className="flex items-center gap-1">
+                        <span className="text-zinc-700 dark:text-zinc-300">{getTeamName(teamId)}</span>
+                        <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Component for finalists section
+function FinalistsSection({
+  officialResults,
+  currentUserPrediction,
+  otherPredictions,
+  teamsMap,
+}: {
+  officialResults: Team[];
+  currentUserPrediction: CompetitionPredictionWithUser | null;
+  otherPredictions: CompetitionPredictionWithUser[];
+  teamsMap: Map<string, Team>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const getTeamName = (teamId: string) => {
+    const team = teamsMap.get(teamId);
+    return team ? team.name : teamId;
+  };
+
+  const finalists = currentUserPrediction?.predictions_json.finalists || [];
+  const finalTeamPoints = currentUserPrediction?.breakdown_json?.finalists?.details?.teamPoints ?? {};
+
+  return (
+    <Card>
+      <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+        <span>🎖️</span>
+        Finalistes
+      </h3>
+
+      {/* Official Results */}
+      <div className="mt-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">Résultats officiels</p>
+        <div className="flex flex-wrap gap-2 text-sm">
+          {officialResults.map((team) => (
+            <span key={team.id} className="font-medium text-zinc-900 dark:text-zinc-50">
+              {team.name}
+            </span>
+          ))}
+          {officialResults.length === 0 && <span className="text-zinc-400">—</span>}
+        </div>
+      </div>
+
+      {/* Current User Prediction */}
+      {currentUserPrediction && (
+        <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">Votre prono</p>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {finalists
+              .filter(Boolean)
+              .map((teamId) => (
+                <div key={teamId} className="flex items-center gap-1">
+                  <span className="text-zinc-700 dark:text-zinc-300">{getTeamName(teamId)}</span>
+                  <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} />
+                </div>
+              ))}
+            {finalists.filter(Boolean).length === 0 && <span className="text-zinc-400">—</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Toggle button for other predictions */}
+      {otherPredictions.length > 0 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-4 text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 font-medium"
+        >
+          {expanded ? "▶ Masquer les autres pronostics" : `▶ Pronostics des autres joueurs (${otherPredictions.length})`}
+        </button>
+      )}
+
+      {/* Other predictions (accordion) */}
+      {expanded && otherPredictions.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {otherPredictions.map((prediction) => {
+            const finalists = prediction.predictions_json.finalists || [];
+            if (finalists.length === 0 || finalists.every((id) => !id)) return null;
+
+            const finalTeamPoints = prediction.breakdown_json?.finalists?.details?.teamPoints ?? {};
+
+            return (
+              <div
+                key={prediction.user_id}
+                className="p-3 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800"
+              >
+                <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-2">
+                  {prediction.nickname || prediction.email}
+                </p>
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {finalists
+                    .filter(Boolean)
+                    .map((teamId) => (
+                      <div key={teamId} className="flex items-center gap-1">
+                        <span className="text-zinc-700 dark:text-zinc-300">{getTeamName(teamId)}</span>
+                        <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function CompetitionComparisonView({ teams, currentUserId, groupNames, competitionResults, teamsMap }: CompetitionComparisonViewProps) {
   const [data, setData] = useState<{
     visibility: VisibilitySettings;
     predictions: CompetitionPredictionWithUser[];
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const teamsMap = new Map(teams.map((team) => [team.id, team]));
 
   const groupTeams = useMemo(() => {
     return teams.reduce<Record<string, Team[]>>((acc, team) => {
@@ -120,6 +465,29 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
       return acc;
     }, {});
   }, [teams]);
+
+  // Helper to get official results for a group
+  const getGroupResults = (groupName: string) => {
+    const groupResults = competitionResults.filter(r => r.stage === "groups" && r.group_name === groupName);
+    const first = groupResults.find(r => r.position === 1);
+    const second = groupResults.find(r => r.position === 2);
+    return {
+      first: first ? teamsMap.get(first.team_id) ?? null : null,
+      second: second ? teamsMap.get(second.team_id) ?? null : null,
+    };
+  };
+
+  // Helper to get official semi-finalists
+  const getSemiFinalists = () => {
+    const semiResults = competitionResults.filter(r => r.stage === "semi_final");
+    return semiResults.map(r => teamsMap.get(r.team_id)).filter((t): t is Team => t !== null);
+  };
+
+  // Helper to get official finalists
+  const getFinalists = () => {
+    const finalResults = competitionResults.filter(r => r.stage === "final");
+    return finalResults.map(r => teamsMap.get(r.team_id)).filter((t): t is Team => t !== null);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -145,60 +513,11 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
     };
 
     fetchData();
-  }, []);
+  }, [currentUserId]);
 
   const getTeamName = (teamId: string) => {
     const team = teamsMap.get(teamId);
     return team ? team.name : teamId;
-  };
-
-  const displayName = (user: CompetitionPredictionWithUser) => {
-    return user.nickname || user.email;
-  };
-
-  const isCurrentUser = (userId: string) => {
-    return userId === currentUserId;
-  };
-
-  // Sort helpers
-  const sortByGroupPoints = (predictions: CompetitionPredictionWithUser[]) => {
-    return [...predictions].sort((a, b) => {
-      // Current user always first
-      if (a.user_id === currentUserId) return -1;
-      if (b.user_id === currentUserId) return 1;
-
-      // Sort by group points descending if available
-      if (a.group_points !== null && b.group_points !== null) {
-        if (b.group_points !== a.group_points) {
-          return b.group_points - a.group_points;
-        }
-      }
-
-      // Then by nickname/email
-      const displayNameA = a.nickname || a.email;
-      const displayNameB = b.nickname || b.email;
-      return displayNameA.localeCompare(displayNameB);
-    });
-  };
-
-  const sortByKnockoutPoints = (predictions: CompetitionPredictionWithUser[]) => {
-    return [...predictions].sort((a, b) => {
-      // Current user always first
-      if (a.user_id === currentUserId) return -1;
-      if (b.user_id === currentUserId) return 1;
-
-      // Sort by knockout points descending if available
-      if (a.knockout_points !== null && b.knockout_points !== null) {
-        if (b.knockout_points !== a.knockout_points) {
-          return b.knockout_points - a.knockout_points;
-        }
-      }
-
-      // Then by nickname/email
-      const displayNameA = a.nickname || a.email;
-      const displayNameB = b.nickname || b.email;
-      return displayNameA.localeCompare(displayNameB);
-    });
   };
 
   if (loading) {
@@ -256,136 +575,32 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
     );
   }
 
+  // Separate current user from others
+  const currentUserPrediction = predictions.find(p => p.user_id === currentUserId) || null;
+  const otherPredictions = predictions.filter(p => p.user_id !== currentUserId);
+
   return (
     <div className="space-y-6">
       {/* Group Stage Predictions */}
       {visibility.show_group_predictions && (
         <div className="grid gap-5 lg:grid-cols-2">
           {groupNames.map((group) => {
-            const sortedPredictions = sortByGroupPoints(predictions);
-            const groupOptions = groupTeams[group] ?? [];
+            const officialResults = getGroupResults(group);
+            const groupOtherPredictions = otherPredictions.filter(p => {
+              const selection = p.predictions_json.groups[group];
+              return selection && (selection.first || selection.second);
+            });
 
             return (
-              <Card key={group}>
-                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                  <span>🏆</span>
-                  Groupe {group}
-                </h3>
-                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                  Prévisions des joueurs
-                </p>
-
-                {/* Desktop Table */}
-                <div className="mt-4 hidden sm:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                        <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
-                        <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">1er</th>
-                        <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                        <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">2e</th>
-                        <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedPredictions.map((prediction) => {
-                        const selection = prediction.predictions_json.groups[group] || { first: "", second: "" };
-                        if (!selection.first && !selection.second) return null;
-
-                        const groupBreakdown = prediction.breakdown_json?.groups?.[group];
-                        const firstPoints = groupBreakdown?.details?.firstPoints ?? null;
-                        const secondPoints = groupBreakdown?.details?.secondPoints ?? null;
-
-                        return (
-                          <tr
-                            key={prediction.user_id}
-                            className={`border-b border-zinc-100 dark:border-zinc-800 last:border-0 ${
-                              isCurrentUser(prediction.user_id)
-                                ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                                : ""
-                            }`}
-                          >
-                            <td className="py-2.5 px-3">
-                              {isCurrentUser(prediction.user_id) ? (
-                                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                                  Vous
-                                </span>
-                              ) : (
-                                <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                                  {displayName(prediction)}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              {selection.first ? getTeamName(selection.first) : "—"}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              {selection.first ? <TeamPointsBadge points={firstPoints} /> : <span className="text-zinc-400 text-xs">—</span>}
-                            </td>
-                            <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              {selection.second ? getTeamName(selection.second) : "—"}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              {selection.second ? <TeamPointsBadge points={secondPoints} /> : <span className="text-zinc-400 text-xs">—</span>}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile Cards */}
-                <div className="mt-4 space-y-3 sm:hidden">
-                  {sortedPredictions.map((prediction) => {
-                    const selection = prediction.predictions_json.groups[group] || { first: "", second: "" };
-                    if (!selection.first && !selection.second) return null;
-
-                    const groupBreakdown = prediction.breakdown_json?.groups?.[group];
-                    const firstPoints = groupBreakdown?.details?.firstPoints ?? null;
-                    const secondPoints = groupBreakdown?.details?.secondPoints ?? null;
-
-                    return (
-                      <Card
-                        key={prediction.user_id}
-                        className={`${
-                          isCurrentUser(prediction.user_id)
-                            ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
-                            : ""
-                        }`}
-                      >
-                        <div className="mb-2">
-                          {isCurrentUser(prediction.user_id) ? (
-                            <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                              Vous
-                            </span>
-                          ) : (
-                            <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                              {displayName(prediction)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-sm space-y-1">
-                          <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
-                            <span className="font-medium">1er :</span>
-                            <div className="flex items-center gap-2">
-                              {selection.first ? getTeamName(selection.first) : "—"}
-                              {selection.first && <TeamPointsBadge points={firstPoints} />}
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between text-zinc-700 dark:text-zinc-300">
-                            <span className="font-medium">2e :</span>
-                            <div className="flex items-center gap-2">
-                              {selection.second ? getTeamName(selection.second) : "—"}
-                              {selection.second && <TeamPointsBadge points={secondPoints} />}
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </Card>
+              <GroupSection
+                key={group}
+                groupName={group}
+                officialResults={officialResults}
+                currentUserPrediction={currentUserPrediction}
+                otherPredictions={groupOtherPredictions}
+                currentUserId={currentUserId}
+                teamsMap={teamsMap}
+              />
             );
           })}
         </div>
@@ -393,246 +608,28 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
 
       {/* Semi-Finalists Predictions */}
       {visibility.show_semi_predictions && (
-        <Card>
-          <div>
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <span>🏅</span>
-              Demi-finalistes
-            </h3>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              Sélections des joueurs
-            </p>
-          </div>
-
-          {/* Desktop Table */}
-          <div className="mt-4 hidden sm:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 1</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 2</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 3</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 4</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortByKnockoutPoints(predictions).map((prediction) => {
-                  const semiFinalists = prediction.predictions_json.semi_finalists || [];
-                  if (semiFinalists.length === 0 || semiFinalists.every((id) => !id)) return null;
-
-                  const semiTeamPoints = prediction.breakdown_json?.semiFinalists?.details?.teamPoints ?? {};
-
-                  return (
-                    <tr
-                      key={prediction.user_id}
-                      className={`border-b border-zinc-100 dark:border-zinc-800 last:border-0 ${
-                        isCurrentUser(prediction.user_id)
-                          ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                          : ""
-                      }`}
-                    >
-                      <td className="py-2.5 px-3">
-                        {isCurrentUser(prediction.user_id) ? (
-                          <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                            Vous
-                          </span>
-                        ) : (
-                          <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                            {displayName(prediction)}
-                          </span>
-                        )}
-                      </td>
-                      {[0, 1, 2, 3].map((index) => {
-                        const teamId = semiFinalists[index];
-                        return (
-                          <React.Fragment key={index}>
-                            <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              {teamId ? getTeamName(teamId) : "—"}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              {teamId ? <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} /> : <span className="text-zinc-400 text-xs">—</span>}
-                            </td>
-                          </React.Fragment>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="mt-4 space-y-3 sm:hidden">
-            {sortByKnockoutPoints(predictions).map((prediction) => {
-              const semiFinalists = prediction.predictions_json.semi_finalists || [];
-              if (semiFinalists.length === 0 || semiFinalists.every((id) => !id)) return null;
-
-              const semiTeamPoints = prediction.breakdown_json?.semiFinalists?.details?.teamPoints ?? {};
-
-              return (
-                <Card
-                  key={prediction.user_id}
-                  className={`${
-                    isCurrentUser(prediction.user_id)
-                      ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
-                      : ""
-                  }`}
-                >
-                  <div className="mb-2">
-                    {isCurrentUser(prediction.user_id) ? (
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                        Vous
-                      </span>
-                    ) : (
-                      <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                        {displayName(prediction)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm">
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-1">Sélections :</p>
-                    <div className="flex flex-wrap gap-2 text-zinc-700 dark:text-zinc-300">
-                      {semiFinalists
-                        .filter(Boolean)
-                        .map((teamId) => (
-                          <div key={teamId} className="flex items-center gap-1">
-                            {getTeamName(teamId)}
-                            <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} />
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </Card>
+        <SemiFinalistsSection
+          officialResults={getSemiFinalists()}
+          currentUserPrediction={currentUserPrediction}
+          otherPredictions={otherPredictions.filter(p => {
+            const semiFinalists = p.predictions_json.semi_finalists || [];
+            return semiFinalists.length > 0 && semiFinalists.some(Boolean);
+          })}
+          teamsMap={teamsMap}
+        />
       )}
 
       {/* Finalists Predictions */}
       {visibility.show_final_predictions && (
-        <Card>
-          <div>
-            <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-              <span>🎖️</span>
-              Finalistes
-            </h3>
-            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-              Sélections des joueurs
-            </p>
-          </div>
-
-          {/* Desktop Table */}
-          <div className="mt-4 hidden sm:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 1</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 2</th>
-                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortByKnockoutPoints(predictions).map((prediction) => {
-                  const finalists = prediction.predictions_json.finalists || [];
-                  if (finalists.length === 0 || finalists.every((id) => !id)) return null;
-
-                  const finalTeamPoints = prediction.breakdown_json?.finalists?.details?.teamPoints ?? {};
-
-                  return (
-                    <tr
-                      key={prediction.user_id}
-                      className={`border-b border-zinc-100 dark:border-zinc-800 last:border-0 ${
-                        isCurrentUser(prediction.user_id)
-                          ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                          : ""
-                      }`}
-                    >
-                      <td className="py-2.5 px-3">
-                        {isCurrentUser(prediction.user_id) ? (
-                          <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                            Vous
-                          </span>
-                        ) : (
-                          <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                            {displayName(prediction)}
-                          </span>
-                        )}
-                      </td>
-                      {[0, 1].map((index) => {
-                        const teamId = finalists[index];
-                        return (
-                          <React.Fragment key={index}>
-                            <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              {teamId ? getTeamName(teamId) : "—"}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              {teamId ? <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} /> : <span className="text-zinc-400 text-xs">—</span>}
-                            </td>
-                          </React.Fragment>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="mt-4 space-y-3 sm:hidden">
-            {sortByKnockoutPoints(predictions).map((prediction) => {
-              const finalists = prediction.predictions_json.finalists || [];
-              if (finalists.length === 0 || finalists.every((id) => !id)) return null;
-
-              const finalTeamPoints = prediction.breakdown_json?.finalists?.details?.teamPoints ?? {};
-
-              return (
-                <Card
-                  key={prediction.user_id}
-                  className={`${
-                    isCurrentUser(prediction.user_id)
-                      ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
-                      : ""
-                  }`}
-                >
-                  <div className="mb-2">
-                    {isCurrentUser(prediction.user_id) ? (
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                        Vous
-                      </span>
-                    ) : (
-                      <span className="font-medium text-zinc-900 dark:text-zinc-50">
-                        {displayName(prediction)}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm">
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-1">Sélections :</p>
-                    <div className="flex flex-wrap gap-2 text-zinc-700 dark:text-zinc-300">
-                      {finalists
-                        .filter(Boolean)
-                        .map((teamId) => (
-                          <div key={teamId} className="flex items-center gap-1">
-                            {getTeamName(teamId)}
-                            <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} />
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </Card>
+        <FinalistsSection
+          officialResults={getFinalists()}
+          currentUserPrediction={currentUserPrediction}
+          otherPredictions={otherPredictions.filter(p => {
+            const finalists = p.predictions_json.finalists || [];
+            return finalists.length > 0 && finalists.some(Boolean);
+          })}
+          teamsMap={teamsMap}
+        />
       )}
     </div>
   );

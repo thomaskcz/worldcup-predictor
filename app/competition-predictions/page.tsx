@@ -40,6 +40,11 @@ export default async function CompetitionPredictionsPage() {
     throw new Error("Impossible de charger les équipes pour les prévisions de la compétition.");
   }
 
+  // Fetch competition results
+  const { data: competitionResults } = await supabase
+    .from("competition_results")
+    .select("id, stage, group_name, team_id, position");
+
   const predictionResponse = await supabase
     .from("competition_predictions")
     .select("predictions_json")
@@ -65,6 +70,7 @@ export default async function CompetitionPredictionsPage() {
 
   const groupTeams = (teams as Team[]) ?? [];
   const groupNames = Array.from(new Set(groupTeams.map((team) => team.group_name ?? "Ungrouped"))).sort();
+  const teamsMap = new Map(groupTeams.map((team) => [team.id, team]));
 
   return (
     <PageContainer
@@ -77,6 +83,8 @@ export default async function CompetitionPredictionsPage() {
           teams={groupTeams}
           currentUserId={user.id}
           groupNames={groupNames}
+          competitionResults={competitionResults ?? []}
+          teamsMap={teamsMap}
         />
       ) : (
         <CompetitionPredictionsForm
