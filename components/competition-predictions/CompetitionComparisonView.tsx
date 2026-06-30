@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import React from "react";
 import type { Team } from "@/types/database";
 import { Card } from "@/components/ui/Card";
 
@@ -77,7 +78,7 @@ function PointsBadge({ points, maxPoints = 36 }: { points: number | null; maxPoi
 
 function TeamPointsBadge({ points }: { points: number | null }) {
   if (points === null) {
-    return <span className="text-zinc-400 text-xs">—</span>;
+    return <span className="text-zinc-400 text-xs w-12 text-right">—</span>;
   }
 
   const getBadgeColor = (pts: number) => {
@@ -88,9 +89,9 @@ function TeamPointsBadge({ points }: { points: number | null }) {
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${getBadgeColor(points)}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${getBadgeColor(points)} w-12 justify-center`}
     >
-      {points}
+      {points} pts
     </span>
   );
 }
@@ -281,7 +282,9 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                       <tr className="border-b border-zinc-200 dark:border-zinc-800">
                         <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
                         <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">1er</th>
+                        <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
                         <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">2e</th>
+                        <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -314,16 +317,16 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                               )}
                             </td>
                             <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              <div className="flex items-center gap-2">
-                                {selection.first ? getTeamName(selection.first) : "—"}
-                                {selection.first && <TeamPointsBadge points={firstPoints} />}
-                              </div>
+                              {selection.first ? getTeamName(selection.first) : "—"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {selection.first ? <TeamPointsBadge points={firstPoints} /> : <span className="text-zinc-400 text-xs">—</span>}
                             </td>
                             <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                              <div className="flex items-center gap-2">
-                                {selection.second ? getTeamName(selection.second) : "—"}
-                                {selection.second && <TeamPointsBadge points={secondPoints} />}
-                              </div>
+                              {selection.second ? getTeamName(selection.second) : "—"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {selection.second ? <TeamPointsBadge points={secondPoints} /> : <span className="text-zinc-400 text-xs">—</span>}
                             </td>
                           </tr>
                         );
@@ -407,7 +410,14 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
                   <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Sélections</th>
+                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 1</th>
+                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
+                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 2</th>
+                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
+                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 3</th>
+                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
+                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 4</th>
+                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
                 </tr>
               </thead>
               <tbody>
@@ -437,18 +447,19 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                        <div className="flex flex-wrap gap-2">
-                          {semiFinalists
-                            .filter(Boolean)
-                            .map((teamId) => (
-                              <div key={teamId} className="flex items-center gap-1">
-                                {getTeamName(teamId)}
-                                <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} />
-                              </div>
-                            ))}
-                        </div>
-                      </td>
+                      {[0, 1, 2, 3].map((index) => {
+                        const teamId = semiFinalists[index];
+                        return (
+                          <React.Fragment key={index}>
+                            <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
+                              {teamId ? getTeamName(teamId) : "—"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {teamId ? <TeamPointsBadge points={semiTeamPoints[teamId] ?? null} /> : <span className="text-zinc-400 text-xs">—</span>}
+                            </td>
+                          </React.Fragment>
+                        );
+                      })}
                     </tr>
                   );
                 })}
@@ -523,7 +534,10 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
               <thead>
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
                   <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Joueur</th>
-                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Sélections</th>
+                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 1</th>
+                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
+                  <th className="text-left py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50">Équipe 2</th>
+                  <th className="text-right py-2 px-3 font-semibold text-zinc-900 dark:text-zinc-50 w-16">Points</th>
                 </tr>
               </thead>
               <tbody>
@@ -553,18 +567,19 @@ export function CompetitionComparisonView({ teams, currentUserId, groupNames }: 
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
-                        <div className="flex flex-wrap gap-2">
-                          {finalists
-                            .filter(Boolean)
-                            .map((teamId) => (
-                              <div key={teamId} className="flex items-center gap-1">
-                                {getTeamName(teamId)}
-                                <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} />
-                              </div>
-                            ))}
-                        </div>
-                      </td>
+                      {[0, 1].map((index) => {
+                        const teamId = finalists[index];
+                        return (
+                          <React.Fragment key={index}>
+                            <td className="py-2.5 px-3 text-zinc-700 dark:text-zinc-300">
+                              {teamId ? getTeamName(teamId) : "—"}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              {teamId ? <TeamPointsBadge points={finalTeamPoints[teamId] ?? null} /> : <span className="text-zinc-400 text-xs">—</span>}
+                            </td>
+                          </React.Fragment>
+                        );
+                      })}
                     </tr>
                   );
                 })}
